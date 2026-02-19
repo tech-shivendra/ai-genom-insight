@@ -26,7 +26,7 @@ export const Navbar = () => {
       transition={{ duration: 0.5, ease: "easeOut" }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "glass-strong border-b border-border/40 py-2"
+          ? "bg-white/90 backdrop-blur-md shadow-soft border-b border-border py-2"
           : "bg-transparent py-4"
       }`}
       aria-label="Main navigation"
@@ -36,9 +36,9 @@ export const Navbar = () => {
           <img
             src={generxLogo}
             alt="GeneRx logo"
-            className="w-8 h-8 rounded-lg group-hover:scale-110 transition-transform"
+            className="w-9 h-9 rounded-lg group-hover:scale-110 transition-transform"
           />
-          <span className="font-display font-bold text-foreground tracking-tight">
+          <span className="font-display font-bold text-foreground tracking-tight text-lg">
             Gene<span className="gradient-text">Rx</span>
           </span>
         </a>
@@ -52,7 +52,7 @@ export const Navbar = () => {
               className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 relative group"
             >
               {l.label}
-              <span className="absolute -bottom-1 left-0 w-0 h-px bg-neon-cyan group-hover:w-full transition-all duration-300" />
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary rounded-full group-hover:w-full transition-all duration-300" />
             </a>
           ))}
         </div>
@@ -62,11 +62,7 @@ export const Navbar = () => {
             href="#upload"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="hidden md:inline-flex items-center gap-1.5 text-sm font-semibold px-5 py-2 rounded-lg transition-all duration-300"
-            style={{
-              background: "linear-gradient(135deg, hsl(183 100% 40%), hsl(175 80% 35%))",
-              color: "white",
-            }}
+            className="hidden md:inline-flex items-center gap-1.5 text-sm font-semibold px-5 py-2.5 rounded-lg btn-warm"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -76,12 +72,12 @@ export const Navbar = () => {
 
           {/* Mobile menu button */}
           <button
-            className="md:hidden glass rounded-lg p-2"
+            className="md:hidden bg-white/80 rounded-lg p-2 border border-border"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle mobile menu"
             aria-expanded={mobileOpen}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {mobileOpen ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               ) : (
@@ -102,13 +98,13 @@ export const Navbar = () => {
             transition={{ duration: 0.3 }}
             className="md:hidden overflow-hidden"
           >
-            <div className="border-t border-border/40 px-4 py-3 space-y-1 glass-strong">
+            <div className="border-t border-border px-4 py-3 space-y-1 bg-white/95 backdrop-blur-md">
               {NavLinks.map((l) => (
                 <a
                   key={l.href}
                   href={l.href}
                   onClick={() => setMobileOpen(false)}
-                  className="block py-2.5 text-sm text-muted-foreground hover:text-neon-cyan transition-colors"
+                  className="block py-2.5 text-sm text-muted-foreground hover:text-primary transition-colors"
                 >
                   {l.label}
                 </a>
@@ -116,7 +112,7 @@ export const Navbar = () => {
               <a
                 href="#upload"
                 onClick={() => setMobileOpen(false)}
-                className="block py-2.5 text-sm font-semibold text-neon-cyan"
+                className="block py-2.5 text-sm font-semibold text-primary"
               >
                 → Run Analysis
               </a>

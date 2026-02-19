@@ -172,16 +172,12 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
   return (
     <section id="upload" className="py-24 relative">
       <div className="absolute top-0 left-0 right-0 section-divider" />
-      <div className="absolute inset-0 grid-pattern opacity-20 pointer-events-none" />
 
       <div className="container mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-12 reveal">
-          <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-sm mb-6">
-            <div className="w-2 h-2 rounded-full bg-neon-cyan animate-pulse" />
-            <span className="text-neon-cyan font-medium">Genomic Analysis Engine</span>
-          </div>
-          <h2 className="text-4xl md:text-5xl font-display font-black mb-4">
+          <div className="subtitle-accent mb-4">genomic analysis :</div>
+          <h2 className="text-4xl md:text-5xl font-display font-bold mb-4">
             Upload & <span className="gradient-text">Analyze</span>
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
@@ -218,12 +214,12 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
 
             {uploadedFile ? (
               <div className="space-y-3">
-                <div className="w-16 h-16 mx-auto rounded-2xl bg-neon-green/10 border border-neon-green/40 flex items-center justify-center shadow-glow-green">
-                  <svg className="w-8 h-8 text-neon-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-warm-green/10 border border-warm-green/30 flex items-center justify-center shadow-soft">
+                  <svg className="w-8 h-8 text-warm-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <div className="text-neon-green font-semibold">{uploadedFile.name}</div>
+                <div className="text-warm-green font-semibold">{uploadedFile.name}</div>
                 <div className="text-muted-foreground text-sm">
                   {(uploadedFile.size / 1024).toFixed(1)} KB · VCF validated · Click to replace
                 </div>
@@ -235,7 +231,7 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
                     isDragging ? "scale-110" : ""
                   } transition-transform duration-300`}
                 >
-                  <svg className="w-8 h-8 text-neon-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                 </div>
@@ -248,7 +244,7 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
                   </p>
                 </div>
                 <div className="inline-flex items-center gap-2 text-xs text-muted-foreground glass rounded-full px-3 py-1">
-                  <svg className="w-3 h-3 text-neon-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3 h-3 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                   Processed client-side only · No data uploaded to servers
@@ -268,7 +264,7 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
           )}
 
           {/* Drug selector */}
-          <div className="glass rounded-2xl p-6 space-y-4">
+          <div className="card-surface p-6 space-y-4">
             <label className="block text-sm font-semibold text-foreground">
               Select Drugs to Analyze
               <span className="ml-2 text-xs text-muted-foreground font-normal">
@@ -285,10 +281,10 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
                     <button
                       key={drug}
                       onClick={() => toggleDrug(drug)}
-                      className={`inline-flex items-center gap-1.5 glass rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 border ${
                         unsupported
-                          ? "text-neon-yellow border border-neon-yellow/40 hover:bg-neon-yellow/10"
-                          : "text-neon-cyan glow-border hover:bg-neon-cyan/10"
+                          ? "text-warm-yellow border-warm-yellow/40 bg-warm-yellow/5 hover:bg-warm-yellow/10"
+                          : "text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
                       }`}
                       aria-label={`Remove ${drug}`}
                       title={unsupported ? "Drug not in pharmacogenomic database — results will be Unknown" : `Remove ${drug}`}
@@ -306,7 +302,7 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
 
             {/* Unsupported drug warning */}
             {unsupportedSelected.length > 0 && (
-              <div className="flex items-start gap-2 text-xs text-neon-yellow" role="alert">
+              <div className="flex items-start gap-2 text-xs text-warm-yellow" role="alert">
                 <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
@@ -328,7 +324,7 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
                 onBlur={() => setTimeout(() => setDropdownOpen(false), 200)}
                 onKeyDown={handleDrugSearchKeyDown}
                 placeholder="Search drugs (e.g. Warfarin, Codeine) or type comma-separated"
-                className="w-full bg-muted/50 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/30 transition-all"
+                className="w-full bg-muted/50 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all"
                 aria-label="Search and add drugs"
                 aria-expanded={dropdownOpen}
                 aria-haspopup="listbox"
@@ -339,7 +335,7 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
 
               {dropdownOpen && filteredDrugs.length > 0 && (
                 <div
-                  className="absolute top-full left-0 right-0 mt-2 glass-strong rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto shadow-card-dark"
+                  className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto shadow-card border border-border"
                   role="listbox"
                   aria-label="Drug suggestions"
                 >
@@ -349,11 +345,11 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
                       role="option"
                       aria-selected={selectedDrugs.includes(drug)}
                       onMouseDown={() => { toggleDrug(drug); setDrugSearch(""); }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-neon-cyan/10 hover:text-neon-cyan transition-colors"
+                      className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-primary/5 hover:text-primary transition-colors"
                     >
                       {drug}
                       {!isDrugSupported(drug) && (
-                        <span className="ml-2 text-xs text-neon-yellow">⚠ not in DB</span>
+                        <span className="ml-2 text-xs text-warm-yellow">⚠ not in DB</span>
                       )}
                     </button>
                   ))}
@@ -373,8 +369,8 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
                       onClick={() => toggleDrug(drug)}
                       className={`text-xs px-3 py-1 rounded-full border transition-all duration-200 ${
                         selected
-                          ? "bg-neon-cyan/15 text-neon-cyan border-neon-cyan/50"
-                          : "glass text-muted-foreground border-border/50 hover:text-foreground hover:border-neon-cyan/30"
+                          ? "bg-primary/10 text-primary border-primary/40"
+                          : "bg-white text-muted-foreground border-border hover:text-foreground hover:border-primary/30"
                       }`}
                     >
                       {selected && "✓ "}{drug}
@@ -396,10 +392,10 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
           )}
 
           {/* VCF format guide */}
-          <details className="glass rounded-xl p-4 group">
+          <details className="card-surface p-4 group">
             <summary className="flex items-center justify-between cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors list-none">
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-neon-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="font-medium">VCF Format Guide & Sample Data</span>
@@ -410,10 +406,10 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
             </summary>
             <div className="mt-3 space-y-3">
               <p className="text-xs text-muted-foreground">
-                The engine reads the <code className="text-neon-cyan">INFO</code> column for{" "}
-                <code className="text-neon-cyan">GENE=</code>,{" "}
-                <code className="text-neon-cyan">STAR=</code>, and{" "}
-                <code className="text-neon-cyan">RS=</code> tags (tab-delimited, 8+ columns, VCF v4.1/v4.2).
+                The engine reads the <code className="text-primary font-semibold">INFO</code> column for{" "}
+                <code className="text-primary font-semibold">GENE=</code>,{" "}
+                <code className="text-primary font-semibold">STAR=</code>, and{" "}
+                <code className="text-primary font-semibold">RS=</code> tags (tab-delimited, 8+ columns, VCF v4.1/v4.2).
               </p>
               <pre className="text-xs font-mono text-muted-foreground bg-muted/30 rounded-lg p-3 overflow-x-auto leading-relaxed">{`##fileformat=VCFv4.2
 #CHROM  POS       ID          REF  ALT  QUAL  FILTER  INFO
@@ -425,8 +421,8 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
 1       97305364  rs3918290   C    T    .     PASS    GENE=DPYD;STAR=*2A;RS=rs3918290`}</pre>
               <a
                 href="/sample.vcf"
-                download="sample_pharmaguard.vcf"
-                className="inline-flex items-center gap-2 text-xs font-medium text-neon-cyan hover:underline"
+                download="sample_generx.vcf"
+                className="inline-flex items-center gap-2 text-xs font-medium text-primary hover:underline"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -441,15 +437,13 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
             <button
               onClick={handleAnalyze}
               disabled={!canAnalyze}
-              className="flex-1 relative py-4 rounded-xl font-bold text-lg overflow-hidden transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
+              className="flex-1 relative py-4 rounded-xl font-bold text-lg overflow-hidden transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group text-white"
               style={{
                 background: isAnalyzing
-                  ? "linear-gradient(135deg, hsl(265 60% 40%), hsl(265 60% 35%))"
-                  : "linear-gradient(135deg, hsl(183 100% 35%), hsl(175 80% 30%))",
-                boxShadow: isAnalyzing
-                  ? "var(--glow-purple)"
-                  : canAnalyze
-                  ? "var(--glow-cyan)"
+                  ? "linear-gradient(135deg, hsl(183 60% 35%), hsl(183 50% 30%))"
+                  : "linear-gradient(135deg, hsl(22 90% 55%), hsl(22 85% 62%))",
+                boxShadow: canAnalyze
+                  ? "0 10px 25px rgba(212, 100, 50, 0.25)"
                   : "none",
               }}
               aria-label="Analyze patient data"
@@ -477,7 +471,7 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
             {(uploadedFile || hasResults) && !isAnalyzing && (
               <button
                 onClick={handleReset}
-                className="px-4 py-4 rounded-xl font-medium text-sm glass border border-border/50 text-muted-foreground hover:text-foreground hover:border-neon-red/40 hover:text-neon-red transition-all duration-200"
+                className="px-4 py-4 rounded-xl font-medium text-sm bg-white border border-border text-muted-foreground hover:text-foreground hover:border-warm-red/40 hover:text-warm-red transition-all duration-200"
                 aria-label="Reset analysis"
                 title="Clear file and results"
               >

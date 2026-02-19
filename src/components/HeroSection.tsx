@@ -3,7 +3,6 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import heroBg from "@/assets/hero-bg.jpg";
 import { HeroDNAHelix } from "./HeroDNAHelix";
 
-
 const AnimatedCounter = ({ target, suffix = "" }: { target: string; suffix?: string }) => {
   const [count, setCount] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
@@ -13,7 +12,6 @@ const AnimatedCounter = ({ target, suffix = "" }: { target: string; suffix?: str
     if (!isNumber) return;
     const num = Number(target);
     let frame: number;
-    let start = 0;
     const duration = 2000;
     const startTime = performance.now();
 
@@ -42,7 +40,7 @@ const AnimatedCounter = ({ target, suffix = "" }: { target: string; suffix?: str
   }, [target, isNumber]);
 
   return (
-    <div ref={ref} className="text-3xl md:text-4xl font-display font-bold gradient-text tabular-nums">
+    <div ref={ref} className="text-3xl md:text-4xl font-display font-bold text-primary tabular-nums">
       {isNumber ? count : target}{suffix}
     </div>
   );
@@ -53,11 +51,11 @@ const FloatingCard = () => (
     initial={{ opacity: 0, y: 40 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.8, delay: 0.6 }}
-    className="glass-strong rounded-2xl p-5 w-72"
+    className="card-surface rounded-2xl p-5 w-72"
   >
     <div className="flex items-center gap-3 mb-4">
-      <div className="w-8 h-8 rounded-full bg-neon-cyan/20 flex items-center justify-center">
-        <div className="w-3 h-3 rounded-full bg-neon-cyan animate-pulse" />
+      <div className="w-8 h-8 rounded-full bg-warm-teal/15 flex items-center justify-center">
+        <div className="w-3 h-3 rounded-full bg-warm-teal animate-pulse" />
       </div>
       <div>
         <div className="text-xs text-muted-foreground">Patient ID</div>
@@ -82,10 +80,10 @@ const FloatingCard = () => (
               style={{
                 background:
                   row.risk === "safe"
-                    ? "hsl(145 80% 50%)"
+                    ? "hsl(145 50% 40%)"
                     : row.risk === "adjust"
-                    ? "hsl(45 100% 60%)"
-                    : "hsl(0 90% 60%)",
+                    ? "hsl(45 90% 50%)"
+                    : "hsl(0 70% 55%)",
               }}
             />
           </div>
@@ -95,7 +93,7 @@ const FloatingCard = () => (
     </div>
     <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
       <span className="text-xs text-muted-foreground">AI Confidence</span>
-      <span className="text-xs font-bold text-neon-cyan font-mono">97.4%</span>
+      <span className="text-xs font-bold text-warm-teal font-mono">97.4%</span>
     </div>
   </motion.div>
 );
@@ -116,22 +114,16 @@ export const HeroSection = () => {
       {/* Parallax background */}
       <motion.div className="absolute inset-0 z-0" style={{ y: bgY }}>
         <img src={heroBg} alt="" className="w-full h-[120%] object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/60 to-background" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/50 to-background" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-transparent" />
       </motion.div>
-
-      {/* Dot grid overlay */}
-      <div className="absolute inset-0 z-0 opacity-20" style={{
-        backgroundImage: "radial-gradient(hsl(183 100% 50% / 0.15) 1px, transparent 1px)",
-        backgroundSize: "32px 32px",
-      }} />
 
       {/* 3D rotating DNA helix */}
       <HeroDNAHelix />
 
-      {/* Ambient orbs */}
-      <div className="absolute top-20 left-1/4 w-72 h-72 rounded-full bg-neon-cyan/5 blur-[100px] pointer-events-none z-0" />
-      <div className="absolute bottom-20 right-1/4 w-96 h-96 rounded-full bg-neon-purple/5 blur-[120px] pointer-events-none z-0" />
+      {/* Warm ambient orbs */}
+      <div className="absolute top-20 left-1/4 w-72 h-72 rounded-full bg-primary/5 blur-[100px] pointer-events-none z-0" />
+      <div className="absolute bottom-20 right-1/4 w-96 h-96 rounded-full bg-warm-teal/5 blur-[120px] pointer-events-none z-0" />
 
       <motion.div
         className="container relative z-10 mx-auto px-4 pt-24 pb-16"
@@ -147,8 +139,8 @@ export const HeroSection = () => {
               transition={{ duration: 0.5 }}
               className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-sm"
             >
-              <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
-              <span className="text-foreground/80 font-medium">Pharmacogenomics × AI</span>
+              <div className="w-2 h-2 rounded-full bg-warm-green animate-pulse" />
+              <span className="text-muted-foreground font-medium">Pharmacogenomics × AI</span>
             </motion.div>
 
             {/* Title */}
@@ -161,14 +153,13 @@ export const HeroSection = () => {
               <h1 className="text-5xl md:text-6xl lg:text-[4.5rem] font-display font-bold leading-[1.05] tracking-tight">
                 <span className="text-foreground">Know Your</span>
                 <br />
-                <span className="gradient-text-purple">Drug Risk</span>
+                <span className="gradient-text">Drug Risk</span>
                 <br />
                 <span className="text-foreground">Before You</span>{" "}
                 <span className="relative">
                   <span className="text-foreground">Prescribe</span>
                   <motion.span
-                    className="absolute -bottom-1 left-0 h-[3px] rounded-full"
-                    style={{ background: "linear-gradient(90deg, hsl(183 100% 50%), hsl(265 70% 65%))" }}
+                    className="absolute -bottom-1 left-0 h-[3px] rounded-full bg-primary"
                     initial={{ width: "0%" }}
                     animate={{ width: "100%" }}
                     transition={{ duration: 0.8, delay: 1 }}
@@ -193,11 +184,10 @@ export const HeroSection = () => {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.5 }}
-              className="glass rounded-xl p-4 border-l-2"
-              style={{ borderLeftColor: "hsl(0 90% 60% / 0.6)" }}
+              className="glass rounded-xl p-4 border-l-4 border-l-warm-red"
             >
               <p className="text-sm text-muted-foreground leading-relaxed">
-                <span className="font-bold" style={{ color: "hsl(0 90% 65%)" }}>100,000+ Americans die annually</span>{" "}
+                <span className="font-bold text-warm-red">100,000+ Americans die annually</span>{" "}
                 from preventable adverse drug reactions — many due to undetected pharmacogenomic variants.
               </p>
             </motion.div>
@@ -232,24 +222,20 @@ export const HeroSection = () => {
                 href="#upload"
                 whileHover={{ scale: 1.03, y: -2 }}
                 whileTap={{ scale: 0.98 }}
-                className="group relative inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold text-primary-foreground overflow-hidden transition-shadow duration-300"
-                style={{
-                  background: "linear-gradient(135deg, hsl(183 100% 40%), hsl(175 80% 35%))",
-                  boxShadow: "0 0 20px hsl(183 100% 50% / 0.3), 0 0 60px hsl(183 100% 50% / 0.1)",
-                }}
+                className="group relative inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold text-white overflow-hidden btn-warm text-base"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 Analyze Patient Data
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
               </motion.a>
 
               <motion.a
                 href="#about"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.98 }}
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold glass border border-border/50 hover:border-neon-cyan/40 transition-all duration-300"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold bg-white border border-border hover:border-primary/40 hover:shadow-warm transition-all duration-300"
               >
                 How It Works
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -262,7 +248,7 @@ export const HeroSection = () => {
                 download="sample_generx.vcf"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.98 }}
-                className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-sm glass border border-neon-green/30 text-neon-green hover:bg-neon-green/5 transition-all duration-300"
+                className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-sm bg-white border border-warm-green/30 text-warm-green hover:bg-warm-green/5 transition-all duration-300"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -275,26 +261,26 @@ export const HeroSection = () => {
           {/* Right: floating card */}
           <div className="hidden lg:flex justify-center items-center">
             <div className="relative">
-              <div className="absolute -inset-8 rounded-3xl bg-neon-cyan/3 blur-3xl" />
+              <div className="absolute -inset-8 rounded-3xl bg-primary/5 blur-3xl" />
               <FloatingCard />
               {/* Secondary floating cards */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 1.2 }}
-                className="absolute -top-14 -right-12 glass rounded-xl p-3 text-xs"
+                className="absolute -top-14 -right-12 card-surface rounded-xl p-3 text-xs"
               >
                 <div className="text-muted-foreground">Variant Found</div>
-                <div className="text-neon-cyan font-bold font-mono">CYP2D6*4</div>
+                <div className="text-primary font-bold font-mono">CYP2D6*4</div>
               </motion.div>
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 1.4 }}
-                className="absolute -bottom-12 -left-12 glass rounded-xl p-3 text-xs"
+                className="absolute -bottom-12 -left-12 card-surface rounded-xl p-3 text-xs"
               >
                 <div className="text-muted-foreground">Risk Level</div>
-                <div className="text-neon-green font-bold">✓ Low Risk</div>
+                <div className="text-warm-green font-bold">✓ Low Risk</div>
               </motion.div>
             </div>
           </div>
