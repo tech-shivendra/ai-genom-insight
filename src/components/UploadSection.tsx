@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { runAnalysis, setGeminiKey, AnalysisResult, SUPPORTED_DRUGS } from "@/lib/pharmacogenomics";
+import { runAnalysis, AnalysisResult, SUPPORTED_DRUGS } from "@/lib/pharmacogenomics";
 
 // All drugs available in the pharmacogenomic DB (displayed in dropdown)
 const DRUG_LIST = [
@@ -39,9 +39,6 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [geminiKey, setGeminiKeyState] = useState("");
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  const [keySaved, setKeySaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredDrugs = DRUG_LIST.filter(
@@ -111,15 +108,6 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
 
   // Drugs selected but not in our DB (show warning)
   const unsupportedSelected = selectedDrugs.filter((d) => !isDrugSupported(d));
-
-  // ── API key ────────────────────────────────────────────────
-
-  const handleSaveKey = () => {
-    setGeminiKey(geminiKey.trim());
-    setKeySaved(true);
-    setShowKeyInput(false);
-    setTimeout(() => setKeySaved(false), 3000);
-  };
 
   // ── Reset ──────────────────────────────────────────────────
 
@@ -406,68 +394,6 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
               <p className="text-sm text-neon-red">{analysisError}</p>
             </div>
           )}
-
-          {/* Gemini API key (optional) */}
-          <div className="glass rounded-xl p-4">
-            <button
-              onClick={() => setShowKeyInput((v) => !v)}
-              className="flex items-center justify-between w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
-              aria-expanded={showKeyInput}
-            >
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-neon-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                </svg>
-                <span>
-                  <span className="text-neon-purple font-medium">Optional:</span> Gemini API key for AI explanations
-                </span>
-                {keySaved && (
-                  <span className="text-xs text-neon-green font-medium" role="status">✓ Saved</span>
-                )}
-              </div>
-              <svg className={`w-4 h-4 transition-transform duration-200 ${showKeyInput ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {showKeyInput && (
-              <div className="mt-3 space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Without a key, deterministic CPIC rule-based explanations are generated automatically.
-                  Your key is used only for the Gemini API call and is never stored on any server.
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={geminiKey}
-                    onChange={(e) => setGeminiKeyState(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSaveKey()}
-                    placeholder="AIzaSy..."
-                    className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-purple/50 transition-all"
-                    aria-label="Gemini API key"
-                    autoComplete="off"
-                  />
-                  <button
-                    onClick={handleSaveKey}
-                    className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all hover:opacity-90"
-                    style={{ background: "hsl(265 60% 45%)", border: "1px solid hsl(265 60% 60% / 0.4)" }}
-                  >
-                    Save
-                  </button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Get a free key at{" "}
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-neon-cyan hover:underline"
-                  >
-                    aistudio.google.com
-                  </a>
-                </p>
-              </div>
-            )}
-          </div>
 
           {/* VCF format guide */}
           <details className="glass rounded-xl p-4 group">
