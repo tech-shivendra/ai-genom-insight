@@ -51,7 +51,7 @@ const FloatingCard = () => (
     initial={{ opacity: 0, y: 40 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.8, delay: 0.6 }}
-    className="card-surface rounded-2xl p-5 w-72"
+    className="card-surface rounded-2xl p-5 w-72 animate-float"
   >
     <div className="flex items-center gap-3 mb-4">
       <div className="w-8 h-8 rounded-full bg-warm-teal/15 flex items-center justify-center">
