@@ -112,7 +112,7 @@ export const AboutSection = () => {
             <span className="text-muted-foreground font-medium">Core Technology</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-display font-bold mb-4">
-            How <span className="gradient-text-purple">PharmaGuard</span> Works
+            How <span className="gradient-text-purple">GeneRx</span> Works
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
             A multi-layered genomic analysis pipeline turning raw genetic data into actionable clinical insights.

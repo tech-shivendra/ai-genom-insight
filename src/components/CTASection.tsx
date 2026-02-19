@@ -64,7 +64,7 @@ export const CTASection = () => {
 
             <motion.a
               href="/sample.vcf"
-              download="sample_pharmaguard.vcf"
+              download="sample_generx.vcf"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.97 }}
               className="inline-flex items-center gap-2 px-8 py-5 rounded-2xl font-semibold glass border border-border/50 hover:border-neon-cyan/40 transition-all duration-300"

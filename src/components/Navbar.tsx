@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import generxLogo from "@/assets/generx-logo.png";
 
 const NavLinks = [
   { href: "#about", label: "About" },
@@ -32,14 +33,13 @@ export const Navbar = () => {
     >
       <div className="container mx-auto px-4 flex items-center justify-between">
         <a href="#" className="flex items-center gap-2.5 group">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-sm group-hover:scale-110 transition-transform"
-            style={{ background: "linear-gradient(135deg, hsl(183 100% 40%), hsl(265 70% 55%))" }}
-          >
-            🧬
-          </div>
+          <img
+            src={generxLogo}
+            alt="GeneRx logo"
+            className="w-8 h-8 rounded-lg group-hover:scale-110 transition-transform"
+          />
           <span className="font-display font-bold text-foreground tracking-tight">
-            Pharma<span className="gradient-text">Guard</span>
+            Gene<span className="gradient-text">Rx</span>
           </span>
         </a>
 
