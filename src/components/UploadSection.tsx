@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { runAnalysis, setOpenAIKey, AnalysisResult, SUPPORTED_DRUGS } from "@/lib/pharmacogenomics";
+import { runAnalysis, setGeminiKey, AnalysisResult, SUPPORTED_DRUGS } from "@/lib/pharmacogenomics";
 
 // All drugs available in the pharmacogenomic DB
 const DRUG_LIST = [
@@ -37,7 +37,7 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [openAIKey, setOpenAIKeyState] = useState("");
+  const [geminiKey, setGeminiKeyState] = useState("");
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -108,7 +108,7 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
   // ── API key ────────────────────────────────────────────────
 
   const handleSaveKey = () => {
-    setOpenAIKey(openAIKey.trim());
+    setGeminiKey(geminiKey.trim());
     setKeySaved(true);
     setShowKeyInput(false);
     setTimeout(() => setKeySaved(false), 3000);
@@ -367,7 +367,7 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
                 <span>
-                  <span className="text-neon-purple font-medium">Optional:</span> OpenAI API key for GPT explanations
+                  <span className="text-neon-purple font-medium">Optional:</span> Gemini API key for AI explanations
                 </span>
                 {keySaved && (
                   <span className="text-xs text-neon-green font-medium">✓ Saved</span>
@@ -381,17 +381,17 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
               <div className="mt-3 space-y-2">
                 <p className="text-xs text-muted-foreground">
                   Without a key, deterministic rule-based CPIC explanations are generated automatically.
-                  Your key is never stored or transmitted beyond the OpenAI API call.
+                  Your key is never stored or transmitted beyond the Gemini API call.
                 </p>
                 <div className="flex gap-2">
                   <input
                     type="password"
-                    value={openAIKey}
-                    onChange={(e) => setOpenAIKeyState(e.target.value)}
+                    value={geminiKey}
+                    onChange={(e) => setGeminiKeyState(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSaveKey()}
-                    placeholder="sk-..."
+                    placeholder="AIzaSy..."
                     className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-purple/50 transition-all"
-                    aria-label="OpenAI API key"
+                    aria-label="Gemini API key"
                   />
                   <button
                     onClick={handleSaveKey}

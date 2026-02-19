@@ -746,11 +746,11 @@ export function generateJSON(
 // ─── 5. LLM Integration ───────────────────────────────────────
 
 /**
- * API key sourced from Vite env variable: VITE_OPENAI_API_KEY
+ * API key sourced from Vite env variable: VITE_GEMINI_API_KEY
  * .env.example:
- *   VITE_OPENAI_API_KEY=sk-...
+ *   VITE_GEMINI_API_KEY=AIzaSy...
  *
- * Runtime override also supported via setOpenAIKey() for user-supplied keys.
+ * Runtime override also supported via setGeminiKey() for user-supplied keys.
  */
 let _runtimeApiKey = "";
 
@@ -758,12 +758,18 @@ export function setOpenAIKey(key: string): void {
   _runtimeApiKey = key.trim();
 }
 
+/** Alias used by the updated UI panel */
+export function setGeminiKey(key: string): void {
+  _runtimeApiKey = key.trim();
+}
+
 function getApiKey(): string {
-  return _runtimeApiKey || (import.meta.env.VITE_OPENAI_API_KEY as string) || "";
+  return _runtimeApiKey || (import.meta.env.VITE_GEMINI_API_KEY as string) || "";
 }
 
 /**
- * callLLM – Requests a structured pharmacogenomic explanation from OpenAI.
+ * callLLM – Requests a structured pharmacogenomic explanation from Google Gemini.
+ * Uses the Gemini 2.0 Flash model via the generateContent REST endpoint.
  * Falls back to generateFallbackExplanation() on failure or missing key.
  */
 export async function callLLM(riskResult: RiskResult): Promise<LLMExplanation> {
@@ -794,24 +800,21 @@ Generate a structured response with exactly these four sections:
 Be medically concise and accurate. Do not hallucinate variant identifiers or allele frequencies.`;
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 500,
-        temperature: 0.2,
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 600 },
       }),
     });
 
     if (!response.ok) return generateFallbackExplanation(riskResult);
 
     const data = await response.json();
-    const text: string = data.choices?.[0]?.message?.content || "";
+    const text: string =
+      data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     // Map four sections to three output fields
     const summaryMatch = text.match(/1\.\s*Summary[:\s]+(.+?)(?=2\.|$)/is);
@@ -824,8 +827,7 @@ Be medically concise and accurate. Do not hallucinate variant identifiers or all
       mechanism: mechMatch?.[1]?.trim() || "See clinical summary.",
       clinical_impact: [implMatch?.[1]?.trim(), doseMatch?.[1]?.trim()]
         .filter(Boolean)
-        .join(" ")
-        || riskResult.action,
+        .join(" ") || riskResult.action,
     };
   } catch {
     return generateFallbackExplanation(riskResult);
