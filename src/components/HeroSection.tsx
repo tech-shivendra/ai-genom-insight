@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import heroBg from "@/assets/hero-bg.jpg";
+import { HeroDNAHelix } from "./HeroDNAHelix";
 
 
 const AnimatedCounter = ({ target, suffix = "" }: { target: string; suffix?: string }) => {
@@ -124,6 +125,9 @@ export const HeroSection = () => {
         backgroundImage: "radial-gradient(hsl(183 100% 50% / 0.15) 1px, transparent 1px)",
         backgroundSize: "32px 32px",
       }} />
+
+      {/* 3D rotating DNA helix */}
+      <HeroDNAHelix />
 
       {/* Ambient orbs */}
       <div className="absolute top-20 left-1/4 w-72 h-72 rounded-full bg-neon-cyan/5 blur-[100px] pointer-events-none z-0" />
