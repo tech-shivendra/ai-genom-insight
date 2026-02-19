@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 const NavLinks = [
   { href: "#about", label: "About" },
@@ -9,13 +10,27 @@ const NavLinks = [
 
 export const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 50);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <nav
-      className="fixed top-0 left-0 right-0 z-50 glass-strong border-b border-border/40"
+    <motion.nav
+      initial={{ y: -100 }}
+      animate={{ y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "glass-strong border-b border-border/40 py-2"
+          : "bg-transparent py-4"
+      }`}
       aria-label="Main navigation"
     >
-      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div className="container mx-auto px-4 flex items-center justify-between">
         <a href="#" className="flex items-center gap-2.5 group">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center text-sm group-hover:scale-110 transition-transform"
@@ -23,40 +38,41 @@ export const Navbar = () => {
           >
             🧬
           </div>
-          <span className="font-black text-foreground">
+          <span className="font-display font-bold text-foreground tracking-tight">
             Pharma<span className="gradient-text">Guard</span>
           </span>
         </a>
 
         {/* Desktop links */}
-        <div className="hidden md:flex items-center gap-6">
+        <div className="hidden md:flex items-center gap-8">
           {NavLinks.map((l) => (
             <a
               key={l.href}
               href={l.href}
-              className="text-sm text-muted-foreground hover:text-neon-cyan transition-colors duration-200 relative group"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 relative group"
             >
               {l.label}
-              <span className="absolute -bottom-0.5 left-0 w-0 h-px bg-neon-cyan group-hover:w-full transition-all duration-300" />
+              <span className="absolute -bottom-1 left-0 w-0 h-px bg-neon-cyan group-hover:w-full transition-all duration-300" />
             </a>
           ))}
         </div>
 
         <div className="flex items-center gap-3">
-          <a
+          <motion.a
             href="#upload"
-            className="hidden md:inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg transition-all duration-300 hover:scale-105"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="hidden md:inline-flex items-center gap-1.5 text-sm font-semibold px-5 py-2 rounded-lg transition-all duration-300"
             style={{
               background: "linear-gradient(135deg, hsl(183 100% 40%), hsl(175 80% 35%))",
               color: "white",
-              boxShadow: "var(--glow-cyan)",
             }}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
             Analyze
-          </a>
+          </motion.a>
 
           {/* Mobile menu button */}
           <button
@@ -77,31 +93,37 @@ export const Navbar = () => {
       </div>
 
       {/* Mobile menu */}
-      <div
-        className={`md:hidden overflow-hidden transition-all duration-300 ${
-          mobileOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
-        }`}
-      >
-        <div className="border-t border-border/40 px-4 py-3 space-y-1">
-          {NavLinks.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              onClick={() => setMobileOpen(false)}
-              className="block py-2.5 text-sm text-muted-foreground hover:text-neon-cyan transition-colors"
-            >
-              {l.label}
-            </a>
-          ))}
-          <a
-            href="#upload"
-            onClick={() => setMobileOpen(false)}
-            className="block py-2.5 text-sm font-semibold text-neon-cyan"
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="md:hidden overflow-hidden"
           >
-            → Run Analysis
-          </a>
-        </div>
-      </div>
-    </nav>
+            <div className="border-t border-border/40 px-4 py-3 space-y-1 glass-strong">
+              {NavLinks.map((l) => (
+                <a
+                  key={l.href}
+                  href={l.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="block py-2.5 text-sm text-muted-foreground hover:text-neon-cyan transition-colors"
+                >
+                  {l.label}
+                </a>
+              ))}
+              <a
+                href="#upload"
+                onClick={() => setMobileOpen(false)}
+                className="block py-2.5 text-sm font-semibold text-neon-cyan"
+              >
+                → Run Analysis
+              </a>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.nav>
   );
 };

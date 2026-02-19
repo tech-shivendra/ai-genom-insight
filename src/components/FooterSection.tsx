@@ -1,3 +1,6 @@
+import { motion, useInView } from "framer-motion";
+import { useRef } from "react";
+
 const team = [
   { name: "Dr. Aisha Rahman", role: "Chief Genomics Officer", initials: "AR" },
   { name: "Marcus Chen", role: "AI/ML Lead Engineer", initials: "MC" },
@@ -6,28 +9,35 @@ const team = [
 ];
 
 export const FooterSection = () => {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-50px" });
+
   return (
-    <footer className="relative pt-20 pb-10 overflow-hidden">
+    <footer ref={ref} className="relative pt-24 pb-10 overflow-hidden">
       <div className="absolute top-0 left-0 right-0 section-divider" />
-      <div className="absolute inset-0 glass-strong opacity-40 pointer-events-none" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-neon-cyan/3 blur-3xl pointer-events-none rounded-full" />
+      <div className="absolute inset-0 glass-strong opacity-30 pointer-events-none" />
 
       <div className="container mx-auto px-4 relative z-10">
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-10 mb-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.6 }}
+          className="grid md:grid-cols-2 lg:grid-cols-4 gap-10 mb-16"
+        >
           {/* Brand */}
           <div className="lg:col-span-1">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl animate-pulse-glow"
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
                 style={{ background: "linear-gradient(135deg, hsl(183 100% 40%), hsl(265 70% 55%))" }}>
                 🧬
               </div>
               <div>
-                <div className="font-black text-foreground">PharmaGuard</div>
-                <div className="text-xs text-muted-foreground">Pharmacogenomic AI</div>
+                <div className="font-display font-bold text-foreground">PharmaGuard</div>
+                <div className="text-xs text-muted-foreground">Pharmacogenomic Analysis</div>
               </div>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-              Precision medicine powered by AI. Turning genomic data into life-saving clinical decisions.
+              Precision medicine powered by genomics. Turning genetic data into life-saving clinical decisions.
             </p>
             <div className="flex items-center gap-2 text-xs glass rounded-full px-3 py-2 w-fit">
               <span className="text-neon-cyan">🏆</span>
@@ -37,8 +47,8 @@ export const FooterSection = () => {
 
           {/* Links */}
           <div>
-            <h4 className="font-bold text-foreground mb-4 text-sm uppercase tracking-wider">Platform</h4>
-            <ul className="space-y-2">
+            <h4 className="font-display font-bold text-foreground mb-4 text-xs uppercase tracking-widest">Platform</h4>
+            <ul className="space-y-2.5">
               {["Genomic Analysis", "Drug Database", "CPIC Guidelines", "API Access", "Clinical Reports"].map((l) => (
                 <li key={l}>
                   <a href="#" className="text-sm text-muted-foreground hover:text-neon-cyan transition-colors duration-200">
@@ -50,8 +60,8 @@ export const FooterSection = () => {
           </div>
 
           <div>
-            <h4 className="font-bold text-foreground mb-4 text-sm uppercase tracking-wider">Resources</h4>
-            <ul className="space-y-2">
+            <h4 className="font-display font-bold text-foreground mb-4 text-xs uppercase tracking-widest">Resources</h4>
+            <ul className="space-y-2.5">
               {["Documentation", "Research Papers", "CPIC Database", "PharmGKB", "GitHub Repository"].map((l) => (
                 <li key={l}>
                   <a href="#" className="text-sm text-muted-foreground hover:text-neon-cyan transition-colors duration-200">
@@ -64,7 +74,7 @@ export const FooterSection = () => {
 
           {/* Team */}
           <div>
-            <h4 className="font-bold text-foreground mb-4 text-sm uppercase tracking-wider">Team</h4>
+            <h4 className="font-display font-bold text-foreground mb-4 text-xs uppercase tracking-widest">Team</h4>
             <div className="space-y-3">
               {team.map((member) => (
                 <div key={member.name} className="flex items-center gap-3">
@@ -82,15 +92,13 @@ export const FooterSection = () => {
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Divider */}
         <div className="section-divider mb-8" />
 
-        {/* Bottom bar */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-xs text-muted-foreground">
-          © 2026 PharmaGuard AI. Built for{" "}
+            © 2026 PharmaGuard. Built for{" "}
             <span className="text-neon-cyan font-medium">precision medicine research</span>.
             Not for clinical use without validation.
           </div>
@@ -108,10 +116,7 @@ export const FooterSection = () => {
               </svg>
             </a>
 
-            <div
-              className="glass rounded-lg px-4 py-2 flex items-center gap-2 text-xs font-bold glow-border"
-              style={{ color: "hsl(183 100% 60%)" }}
-            >
+            <div className="glass rounded-lg px-4 py-2 flex items-center gap-2 text-xs font-bold glow-border text-neon-cyan">
               🏆 Hackathon 2025
             </div>
           </div>
