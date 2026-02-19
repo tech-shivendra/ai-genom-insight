@@ -7,30 +7,10 @@ import { ResultsSection } from "@/components/ResultsSection";
 import { ExplainabilitySection } from "@/components/ExplainabilitySection";
 import { FooterSection } from "@/components/FooterSection";
 import { useScrollReveal } from "@/hooks/use-animations";
-
-interface ResultsData {
-  patient_id: string;
-  analysis_date: string;
-  vcf_variants_found: number;
-  drugs_analyzed: string[];
-  results: {
-    drug: string;
-    gene: string;
-    diplotype: string;
-    phenotype: string;
-    risk: "safe" | "adjust" | "toxic";
-    recommendation: string;
-    explanation: string;
-    cpic_level: string;
-  }[];
-}
+import { AnalysisResult } from "@/lib/pharmacogenomics";
 
 const Index = () => {
-  const [results, setResults] = useState<ResultsData | null>(null);
-
-  const handleResults = (data: Parameters<typeof setResults>[0]) => {
-    setResults(data as ResultsData);
-  };
+  const [results, setResults] = useState<AnalysisResult | null>(null);
 
   // Initialize scroll reveal
   useScrollReveal();
@@ -48,7 +28,9 @@ const Index = () => {
       { threshold: 0.1, rootMargin: "0px 0px -50px 0px" }
     );
 
-    const elements = document.querySelectorAll(".reveal:not(.visible), .reveal-left:not(.visible), .reveal-right:not(.visible)");
+    const elements = document.querySelectorAll(
+      ".reveal:not(.visible), .reveal-left:not(.visible), .reveal-right:not(.visible)"
+    );
     elements.forEach((el) => observer.observe(el));
 
     return () => observer.disconnect();
@@ -60,7 +42,7 @@ const Index = () => {
       <main>
         <HeroSection />
         <AboutSection />
-        <UploadSection onResults={handleResults} />
+        <UploadSection onResults={setResults} />
         {results && <ResultsSection results={results} />}
         <ExplainabilitySection />
       </main>
