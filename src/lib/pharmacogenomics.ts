@@ -1,5 +1,7 @@
 // ============================================================
-// PharmaGuard – Pharmacogenomic Engine (client-side)
+// PharmaGuard – Pharmacogenomic Engine (client-side, production)
+// CPIC Guidelines v2024.1 aligned
+// No secrets / no hardcoded API keys. Set VITE_OPENAI_API_KEY in .env
 // ============================================================
 
 // ─── Types ───────────────────────────────────────────────────
@@ -10,6 +12,12 @@ export interface DetectedVariant {
   star_allele: string;
 }
 
+/** Risk labels per hackathon schema */
+export type RiskLabel = "Safe" | "Adjust Dosage" | "Toxic" | "Ineffective" | "Unknown";
+
+/** Severity values per schema: none | low | moderate | high | critical */
+export type Severity = "none" | "low" | "moderate" | "high" | "critical";
+
 export interface ParsedVCF {
   variants: DetectedVariant[];
   variantsFound: number;
@@ -19,8 +27,8 @@ export interface ParsedVCF {
 
 export interface RiskResult {
   drug: string;
-  risk_label: "Safe" | "Adjust Dosage" | "Toxic / Ineffective" | "Unknown";
-  severity: "none" | "moderate" | "high" | "unknown";
+  risk_label: RiskLabel;
+  severity: Severity;
   confidence_score: number;
   phenotype: string;
   diplotype: string;
@@ -29,14 +37,21 @@ export interface RiskResult {
   detected_variants: DetectedVariant[];
 }
 
+export interface QualityMetrics {
+  vcf_parsing_success: boolean;
+  variants_detected: number;
+  supported_gene_detected: boolean;
+  cpic_guideline_version: string;
+}
+
 export interface PharmaGuardReport {
   patient_id: string;
   drug: string;
   timestamp: string;
   risk_assessment: {
-    risk_label: string;
+    risk_label: RiskLabel;
     confidence_score: number;
-    severity: string;
+    severity: Severity;
   };
   pharmacogenomic_profile: {
     primary_gene: string;
@@ -52,17 +67,84 @@ export interface PharmaGuardReport {
     mechanism: string;
     clinical_impact: string;
   };
-  quality_metrics: {
-    vcf_parsing_success: boolean;
-    variants_detected: number;
-  };
+  quality_metrics: QualityMetrics;
 }
 
-// ─── Pharmacogenomic Rule Database ───────────────────────────
+export type LLMExplanation = PharmaGuardReport["llm_generated_explanation"];
+
+// ─── Validation ───────────────────────────────────────────────
+
+const VALID_RISK_LABELS: RiskLabel[] = ["Safe", "Adjust Dosage", "Toxic", "Ineffective", "Unknown"];
+const VALID_SEVERITIES: Severity[] = ["none", "low", "moderate", "high", "critical"];
+
+/**
+ * Validates a generated report against the strict JSON schema.
+ * Returns null if valid, or an error string describing the violation.
+ */
+export function validateSchema(report: unknown): string | null {
+  if (!report || typeof report !== "object") return "Report must be an object.";
+  const r = report as Record<string, unknown>;
+
+  const requiredTopKeys: (keyof PharmaGuardReport)[] = [
+    "patient_id", "drug", "timestamp", "risk_assessment",
+    "pharmacogenomic_profile", "clinical_recommendation",
+    "llm_generated_explanation", "quality_metrics",
+  ];
+  for (const key of requiredTopKeys) {
+    if (!(key in r)) return `Missing required field: ${key}`;
+  }
+
+  // patient_id / drug / timestamp as non-empty strings
+  if (typeof r.patient_id !== "string" || !r.patient_id) return "patient_id must be a non-empty string.";
+  if (typeof r.drug !== "string" || !r.drug) return "drug must be a non-empty string.";
+  if (typeof r.timestamp !== "string" || isNaN(Date.parse(r.timestamp as string)))
+    return "timestamp must be a valid ISO 8601 string.";
+
+  // risk_assessment
+  const ra = r.risk_assessment as Record<string, unknown>;
+  if (!ra || typeof ra !== "object") return "risk_assessment must be an object.";
+  if (!VALID_RISK_LABELS.includes(ra.risk_label as RiskLabel))
+    return `risk_assessment.risk_label must be one of: ${VALID_RISK_LABELS.join(", ")}.`;
+  if (typeof ra.confidence_score !== "number")
+    return "risk_assessment.confidence_score must be a number.";
+  if (!VALID_SEVERITIES.includes(ra.severity as Severity))
+    return `risk_assessment.severity must be one of: ${VALID_SEVERITIES.join(", ")}.`;
+
+  // pharmacogenomic_profile
+  const pp = r.pharmacogenomic_profile as Record<string, unknown>;
+  if (!pp || typeof pp !== "object") return "pharmacogenomic_profile must be an object.";
+  for (const k of ["primary_gene", "diplotype", "phenotype"]) {
+    if (typeof pp[k] !== "string") return `pharmacogenomic_profile.${k} must be a string.`;
+  }
+  if (!Array.isArray(pp.detected_variants)) return "pharmacogenomic_profile.detected_variants must be an array.";
+
+  // clinical_recommendation
+  const cr = r.clinical_recommendation as Record<string, unknown>;
+  if (!cr || typeof cr.action !== "string") return "clinical_recommendation.action must be a string.";
+
+  // llm_generated_explanation
+  const llm = r.llm_generated_explanation as Record<string, unknown>;
+  if (!llm || typeof llm !== "object") return "llm_generated_explanation must be an object.";
+  for (const k of ["summary", "mechanism", "clinical_impact"]) {
+    if (typeof llm[k] !== "string") return `llm_generated_explanation.${k} must be a string.`;
+  }
+
+  // quality_metrics
+  const qm = r.quality_metrics as Record<string, unknown>;
+  if (!qm || typeof qm !== "object") return "quality_metrics must be an object.";
+  if (typeof qm.vcf_parsing_success !== "boolean") return "quality_metrics.vcf_parsing_success must be boolean.";
+  if (typeof qm.variants_detected !== "number") return "quality_metrics.variants_detected must be a number.";
+  if (typeof qm.supported_gene_detected !== "boolean") return "quality_metrics.supported_gene_detected must be boolean.";
+  if (typeof qm.cpic_guideline_version !== "string") return "quality_metrics.cpic_guideline_version must be a string.";
+
+  return null; // valid
+}
+
+// ─── Pharmacogenomic Rule Database (CPIC 2024.1) ─────────────
 
 interface DrugRule {
-  risk: "Safe" | "Adjust Dosage" | "Toxic / Ineffective";
-  severity: "none" | "moderate" | "high";
+  risk: RiskLabel;
+  severity: Severity;
   recommendation: string;
 }
 
@@ -73,7 +155,13 @@ interface DiplotypeRule {
 
 type PharmaDB = Record<string, Record<string, DiplotypeRule>>;
 
+/**
+ * Internal pharmacogenomic rule database.
+ * Gene → Diplotype → { phenotype, drugs → DrugRule }
+ * Aligned with CPIC Guidelines 2024.1.
+ */
 export const pharmacogenomicDB: PharmaDB = {
+  // ── CYP2D6 ──────────────────────────────────────────────────
   CYP2D6: {
     "*1/*1": {
       phenotype: "Normal Metabolizer (NM)",
@@ -82,17 +170,17 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Safe",
           severity: "none",
           recommendation:
-            "Standard dosing. Patient metabolizes codeine to morphine at expected rates. No dose adjustment required.",
+            "Standard codeine dosing. Normal CYP2D6 activity ensures adequate morphine conversion. No dose adjustment required per CPIC Level A.",
         },
         TRAMADOL: {
           risk: "Safe",
           severity: "none",
-          recommendation: "Standard tramadol dosing is appropriate for normal CYP2D6 metabolizers.",
+          recommendation: "Standard tramadol dosing appropriate for CYP2D6 Normal Metabolizers.",
         },
         METOPROLOL: {
           risk: "Safe",
           severity: "none",
-          recommendation: "Standard metoprolol dosing. Normal CYP2D6 activity expected.",
+          recommendation: "Standard metoprolol dosing. Normal CYP2D6-mediated clearance expected.",
         },
       },
     },
@@ -103,29 +191,12 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation:
-            "Use with caution. Reduced conversion to morphine may impair analgesia. Consider alternative opioids such as morphine (direct-acting).",
+            "Reduced codeine-to-morphine conversion. Consider lower starting dose or alternative opioid (e.g., morphine). Monitor for inadequate analgesia.",
         },
         TRAMADOL: {
           risk: "Adjust Dosage",
           severity: "moderate",
-          recommendation: "Reduced activation of tramadol. Monitor for reduced analgesic efficacy.",
-        },
-      },
-    },
-    "*4/*4": {
-      phenotype: "Poor Metabolizer (PM)",
-      drugs: {
-        CODEINE: {
-          risk: "Toxic / Ineffective",
-          severity: "high",
-          recommendation:
-            "CONTRAINDICATED. Patient cannot convert codeine to active morphine. Risk of toxic codeine accumulation. Use morphine or non-opioid analgesics instead.",
-        },
-        TRAMADOL: {
-          risk: "Toxic / Ineffective",
-          severity: "high",
-          recommendation:
-            "Avoid tramadol. Negligible conversion to active metabolite O-desmethyltramadol. Select alternative analgesic.",
+          recommendation: "Reduced tramadol activation. Monitor efficacy; consider non-CYP2D6-substrate analgesic.",
         },
       },
     },
@@ -135,7 +206,24 @@ export const pharmacogenomicDB: PharmaDB = {
         CODEINE: {
           risk: "Adjust Dosage",
           severity: "moderate",
-          recommendation: "Reduced codeine metabolism. Consider lower starting dose or alternative analgesic.",
+          recommendation: "Use reduced codeine dose or select a direct-acting opioid. Close monitoring recommended.",
+        },
+      },
+    },
+    "*4/*4": {
+      phenotype: "Poor Metabolizer (PM)",
+      drugs: {
+        CODEINE: {
+          risk: "Toxic",
+          severity: "high",
+          recommendation:
+            "CONTRAINDICATED. Non-functional CYP2D6 → codeine accumulates without morphine conversion. Life-threatening toxicity risk. Use morphine or non-opioid analgesics. CPIC Level A.",
+        },
+        TRAMADOL: {
+          risk: "Toxic",
+          severity: "high",
+          recommendation:
+            "Negligible O-desmethyltramadol production. Avoid tramadol. Select alternative analgesic.",
         },
       },
     },
@@ -143,15 +231,27 @@ export const pharmacogenomicDB: PharmaDB = {
       phenotype: "Poor Metabolizer (PM)",
       drugs: {
         CODEINE: {
-          risk: "Toxic / Ineffective",
+          risk: "Toxic",
           severity: "high",
           recommendation:
-            "AVOID codeine. Non-functional CYP2D6 enzyme. Select morphine or non-opioid pain management.",
+            "AVOID codeine. Non-functional CYP2D6. Accumulation of parent compound with inadequate analgesia. Use morphine or alternative.",
+        },
+      },
+    },
+    "*1/*1xN": {
+      phenotype: "Ultrarapid Metabolizer (UM)",
+      drugs: {
+        CODEINE: {
+          risk: "Toxic",
+          severity: "critical",
+          recommendation:
+            "CONTRAINDICATED. Ultrarapid CYP2D6 → excessive morphine production from codeine. Life-threatening respiratory depression risk (CPIC Level A). Avoid codeine/tramadol. Use non-opioid alternatives.",
         },
       },
     },
   },
 
+  // ── CYP2C19 ─────────────────────────────────────────────────
   CYP2C19: {
     "*1/*1": {
       phenotype: "Normal Metabolizer (NM)",
@@ -160,28 +260,12 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Safe",
           severity: "none",
           recommendation:
-            "Standard clopidogrel dosing. Expected antiplatelet activation. No dose adjustment required.",
+            "Standard clopidogrel dosing. Expected antiplatelet activation. No dose adjustment required per CPIC Level A.",
         },
         OMEPRAZOLE: {
           risk: "Safe",
           severity: "none",
-          recommendation: "Standard omeprazole dosing appropriate.",
-        },
-      },
-    },
-    "*2/*2": {
-      phenotype: "Poor Metabolizer (PM)",
-      drugs: {
-        CLOPIDOGREL: {
-          risk: "Toxic / Ineffective",
-          severity: "high",
-          recommendation:
-            "AVOID clopidogrel. Severely reduced bioactivation to active thiol metabolite. Use prasugrel or ticagrelor as alternatives per CPIC guidelines.",
-        },
-        OMEPRAZOLE: {
-          risk: "Adjust Dosage",
-          severity: "moderate",
-          recommendation: "Reduced clearance; consider dose reduction of omeprazole.",
+          recommendation: "Standard omeprazole dosing appropriate for Normal Metabolizers.",
         },
       },
     },
@@ -192,7 +276,28 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation:
-            "Reduced clopidogrel activation. Consider alternative agents (ticagrelor) especially in high-risk ACS patients.",
+            "Reduced clopidogrel bioactivation. Consider alternative antiplatelet agents (ticagrelor, prasugrel) especially in ACS/high-risk PCI patients. CPIC Level A.",
+        },
+        OMEPRAZOLE: {
+          risk: "Adjust Dosage",
+          severity: "low",
+          recommendation: "Mildly reduced omeprazole clearance. Standard dose typically adequate; monitor response.",
+        },
+      },
+    },
+    "*2/*2": {
+      phenotype: "Poor Metabolizer (PM)",
+      drugs: {
+        CLOPIDOGREL: {
+          risk: "Ineffective",
+          severity: "high",
+          recommendation:
+            "Severely reduced clopidogrel bioactivation to active thiol metabolite. Use prasugrel or ticagrelor instead (CPIC Level A). Risk of major adverse cardiovascular events.",
+        },
+        OMEPRAZOLE: {
+          risk: "Adjust Dosage",
+          severity: "moderate",
+          recommendation: "Significantly reduced omeprazole clearance. Dose reduction may be warranted.",
         },
       },
     },
@@ -202,18 +307,30 @@ export const pharmacogenomicDB: PharmaDB = {
         CLOPIDOGREL: {
           risk: "Safe",
           severity: "none",
-          recommendation: "Enhanced clopidogrel activation. Standard dosing; monitor for increased bleeding risk.",
+          recommendation:
+            "Enhanced clopidogrel bioactivation. Standard dosing; be aware of potentially increased bleeding risk.",
         },
         OMEPRAZOLE: {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation:
-            "Accelerated omeprazole clearance. May need higher doses for adequate acid suppression.",
+            "Accelerated omeprazole clearance. Higher doses may be needed for adequate acid suppression.",
+        },
+      },
+    },
+    "*1/*17": {
+      phenotype: "Rapid Metabolizer (RM)",
+      drugs: {
+        CLOPIDOGREL: {
+          risk: "Safe",
+          severity: "none",
+          recommendation: "Adequate clopidogrel activation expected. Standard dosing appropriate.",
         },
       },
     },
   },
 
+  // ── CYP2C9 ──────────────────────────────────────────────────
   CYP2C9: {
     "*1/*1": {
       phenotype: "Normal Metabolizer (NM)",
@@ -222,7 +339,7 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Safe",
           severity: "none",
           recommendation:
-            "Standard warfarin initiation. Use CPIC/IWPC dosing algorithm. Monitor INR per standard protocol.",
+            "Standard warfarin initiation per CPIC/IWPC dosing algorithm. Routine INR monitoring as per clinical guidelines.",
         },
       },
     },
@@ -233,7 +350,7 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation:
-            "Reduce initial warfarin dose by ~20–25%. Slower warfarin clearance increases bleeding risk. Close INR monitoring essential during initiation.",
+            "Reduce initial warfarin dose by ~20–25%. Slower clearance increases bleeding risk. Intensive INR monitoring during initiation. CPIC Level A.",
         },
       },
     },
@@ -244,7 +361,7 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation:
-            "Reduce initial warfarin dose by ~30–40%. *3 allele severely impairs CYP2C9 function. Aggressive INR monitoring required.",
+            "Reduce initial warfarin dose by 30–40%. CYP2C9*3 severely impairs warfarin S-enantiomer hydroxylation. Frequent INR monitoring mandatory.",
         },
       },
     },
@@ -252,10 +369,10 @@ export const pharmacogenomicDB: PharmaDB = {
       phenotype: "Poor Metabolizer (PM)",
       drugs: {
         WARFARIN: {
-          risk: "Toxic / Ineffective",
+          risk: "Toxic",
           severity: "high",
           recommendation:
-            "Significantly reduced warfarin dose required (~50–60% reduction). Extreme sensitivity to warfarin. Consider genotype-guided dosing algorithm. Frequent INR checks mandatory.",
+            "Significant dose reduction required (~50–60% of standard). Extreme warfarin sensitivity. Genotype-guided dosing algorithm (IWPC) recommended. Intensive INR monitoring.",
         },
       },
     },
@@ -263,15 +380,16 @@ export const pharmacogenomicDB: PharmaDB = {
       phenotype: "Poor Metabolizer (PM)",
       drugs: {
         WARFARIN: {
-          risk: "Toxic / Ineffective",
-          severity: "high",
+          risk: "Toxic",
+          severity: "critical",
           recommendation:
-            "Extreme warfarin sensitivity due to non-functional CYP2C9. Consider alternative anticoagulant (e.g., DOAC). If warfarin used, initiate at very low dose with intensive INR monitoring.",
+            "Consider alternative anticoagulant (DOAC). If warfarin necessary, initiate at very low dose under expert supervision with intensive monitoring. CPIC Level A.",
         },
       },
     },
   },
 
+  // ── SLCO1B1 ─────────────────────────────────────────────────
   SLCO1B1: {
     "*1/*1": {
       phenotype: "Normal Function (NF)",
@@ -280,7 +398,7 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Safe",
           severity: "none",
           recommendation:
-            "Standard simvastatin dosing. Normal SLCO1B1 transport function. Routine CK monitoring as per guidelines.",
+            "Standard simvastatin dosing. Normal OATP1B1 transport function. Routine CK monitoring per standard guidelines.",
         },
       },
     },
@@ -291,7 +409,7 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation:
-            "Increased simvastatin plasma exposure. Use lower simvastatin dose (≤20 mg/day) or switch to pravastatin/rosuvastatin which are less SLCO1B1-dependent.",
+            "Increased simvastatin plasma exposure due to reduced hepatic uptake. Use ≤20 mg/day or switch to pravastatin/rosuvastatin. CPIC Level A.",
         },
       },
     },
@@ -299,15 +417,16 @@ export const pharmacogenomicDB: PharmaDB = {
       phenotype: "Poor Function (PF)",
       drugs: {
         SIMVASTATIN: {
-          risk: "Toxic / Ineffective",
+          risk: "Toxic",
           severity: "high",
           recommendation:
-            "HIGH RISK of simvastatin-induced myopathy and rhabdomyolysis. Avoid simvastatin >20mg. Switch to pravastatin or rosuvastatin. Monitor CK levels.",
+            "HIGH RISK of simvastatin-induced myopathy and rhabdomyolysis. Avoid simvastatin >20 mg. Strongly prefer pravastatin or rosuvastatin. Monitor CK. CPIC Level A.",
         },
       },
     },
   },
 
+  // ── TPMT ────────────────────────────────────────────────────
   TPMT: {
     "*1/*1": {
       phenotype: "Normal Metabolizer (NM)",
@@ -316,12 +435,12 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Safe",
           severity: "none",
           recommendation:
-            "Standard azathioprine dosing. Normal TPMT activity. Monitor CBC as per standard immunosuppression protocol.",
+            "Standard azathioprine dosing. Normal TPMT activity. Routine CBC monitoring per immunosuppression protocol.",
         },
         MERCAPTOPURINE: {
           risk: "Safe",
           severity: "none",
-          recommendation: "Standard mercaptopurine dosing appropriate for normal TPMT activity.",
+          recommendation: "Standard mercaptopurine dosing for Normal TPMT Metabolizers.",
         },
       },
     },
@@ -332,12 +451,12 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation:
-            "Reduce azathioprine starting dose by 30–70% of standard dose. Monitor CBC closely for myelosuppression. Titrate based on tolerance and clinical response.",
+            "Reduce azathioprine starting dose by 30–70% of standard. Monitor CBC closely for myelosuppression. Titrate based on tolerance. CPIC Level A.",
         },
         MERCAPTOPURINE: {
           risk: "Adjust Dosage",
           severity: "moderate",
-          recommendation: "Reduce starting mercaptopurine dose by 30–70%. Monitor blood counts weekly.",
+          recommendation: "Reduce mercaptopurine starting dose by 30–70%. Weekly CBC monitoring.",
         },
       },
     },
@@ -345,21 +464,22 @@ export const pharmacogenomicDB: PharmaDB = {
       phenotype: "Poor Metabolizer (PM)",
       drugs: {
         AZATHIOPRINE: {
-          risk: "Toxic / Ineffective",
-          severity: "high",
+          risk: "Toxic",
+          severity: "critical",
           recommendation:
-            "LIFE-THREATENING myelosuppression risk with standard azathioprine doses. Reduce dose to 10% of standard dose or choose alternative immunosuppressant. Mandatory CBC monitoring.",
+            "LIFE-THREATENING risk. Standard doses cause severe myelosuppression. Reduce to ~10% of standard dose or select alternative immunosuppressant. Mandatory CBC monitoring. CPIC Level A.",
         },
         MERCAPTOPURINE: {
-          risk: "Toxic / Ineffective",
-          severity: "high",
+          risk: "Toxic",
+          severity: "critical",
           recommendation:
-            "Severe myelosuppression risk. Reduce to 10% of standard dose. Consider alternative therapy.",
+            "Severe myelosuppression risk. Reduce to 10% of standard dose. Consider alternative therapy. CPIC Level A.",
         },
       },
     },
   },
 
+  // ── DPYD ────────────────────────────────────────────────────
   DPYD: {
     "*1/*1": {
       phenotype: "Normal Metabolizer (NM)",
@@ -368,12 +488,12 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Safe",
           severity: "none",
           recommendation:
-            "Standard fluorouracil (5-FU) dosing. Normal DPD enzyme activity. Proceed with standard oncology protocol.",
+            "Standard 5-FU dosing. Normal DPD enzyme activity. Proceed with standard oncology protocol.",
         },
         CAPECITABINE: {
           risk: "Safe",
           severity: "none",
-          recommendation: "Standard capecitabine dosing for normal DPYD metabolizers.",
+          recommendation: "Standard capecitabine dosing for Normal DPYD Metabolizers.",
         },
       },
     },
@@ -384,13 +504,12 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation:
-            "Reduce 5-FU starting dose by 50%. Reduced DPD activity increases risk of severe fluoropyrimidine toxicity. Monitor for mucositis, myelosuppression, diarrhea.",
+            "Reduce 5-FU starting dose by 50%. Reduced DPD activity increases severe toxicity risk. Monitor for mucositis, myelosuppression, diarrhea. CPIC Level A.",
         },
         CAPECITABINE: {
           risk: "Adjust Dosage",
           severity: "moderate",
-          recommendation:
-            "Reduce capecitabine dose by 50%. Monitor closely for Grade 3–4 toxicities.",
+          recommendation: "Reduce capecitabine dose by 50%. Monitor closely for Grade 3–4 toxicities.",
         },
       },
     },
@@ -398,110 +517,128 @@ export const pharmacogenomicDB: PharmaDB = {
       phenotype: "Poor Metabolizer (PM)",
       drugs: {
         FLUOROURACIL: {
-          risk: "Toxic / Ineffective",
-          severity: "high",
+          risk: "Toxic",
+          severity: "critical",
           recommendation:
-            "CONTRAINDICATED. Complete DPD deficiency causes life-threatening 5-FU toxicity. Avoid all fluoropyrimidines or use with extreme dose reduction (>75%) under expert supervision only.",
+            "CONTRAINDICATED. Complete DPD deficiency → life-threatening 5-FU toxicity. Avoid all fluoropyrimidines or use only under expert supervision with >75% dose reduction. CPIC Level A.",
         },
         CAPECITABINE: {
-          risk: "Toxic / Ineffective",
-          severity: "high",
+          risk: "Toxic",
+          severity: "critical",
           recommendation:
-            "CONTRAINDICATED. Avoid capecitabine. Complete DPD deficiency. Life-threatening toxicity risk.",
+            "CONTRAINDICATED. Complete DPD deficiency. Life-threatening toxicity. Avoid capecitabine. CPIC Level A.",
         },
       },
     },
   },
 };
 
+// Set of supported gene names (derived from DB keys)
+const SUPPORTED_GENES = new Set(Object.keys(pharmacogenomicDB));
+
+// Set of all supported drug names across the DB (uppercase)
+export const SUPPORTED_DRUGS: Set<string> = new Set(
+  Object.values(pharmacogenomicDB).flatMap((diplotypeMap) =>
+    Object.values(diplotypeMap).flatMap((d) => Object.keys(d.drugs))
+  )
+);
+
 // ─── 1. VCF Parser ────────────────────────────────────────────
 
 /**
- * Parses a VCF file string into structured variant objects.
- * Extracts GENE, STAR allele, and rsID from each data line.
+ * parseVCF – Entry point for VCF file parsing.
+ * Reads file content as string, delegates to extractVariants().
  */
 export function parseVCF(fileContent: string): ParsedVCF {
   try {
-    const lines = fileContent.split("\n");
-    const variants: DetectedVariant[] = [];
-
-    for (const rawLine of lines) {
-      const line = rawLine.trim();
-
-      // Skip header/comment lines
-      if (line.startsWith("#") || line === "") continue;
-
-      const cols = line.split("\t");
-      if (cols.length < 8) continue;
-
-      // Column indices: CHROM(0) POS(1) ID(2) REF(3) ALT(4) QUAL(5) FILTER(6) INFO(7)
-      const rsid = cols[2] || ".";
-      const info = cols[7] || "";
-
-      // Parse INFO tags
-      const infoTags: Record<string, string> = {};
-      for (const tag of info.split(";")) {
-        const [key, val] = tag.split("=");
-        if (key && val !== undefined) infoTags[key.trim()] = val.trim();
-      }
-
-      const gene = infoTags["GENE"] || infoTags["gene"] || "";
-      const star = infoTags["STAR"] || infoTags["star"] || infoTags["ALLELE"] || "";
-
-      if (gene) {
-        variants.push({
-          rsid: rsid !== "." ? rsid : infoTags["RS"] || "unknown",
-          gene: gene.toUpperCase(),
-          star_allele: star || "*1",
-        });
-      }
-    }
-
-    return {
-      variants,
-      variantsFound: variants.length,
-      success: true,
-    };
+    const variants = extractVariants(fileContent);
+    return { variants, variantsFound: variants.length, success: true };
   } catch (err) {
     return {
       variants: [],
       variantsFound: 0,
       success: false,
-      error: err instanceof Error ? err.message : "Unknown parsing error",
+      error: err instanceof Error ? err.message : "Unknown VCF parsing error.",
     };
   }
 }
 
-// ─── 2. Risk Classifier ──────────────────────────────────────
-
 /**
- * Determines diplotype from detected variants for a given gene.
- * Pairs up star alleles to form diplotype (e.g. *1/*4).
+ * extractVariants – Parses VCF lines, extracting GENE and STAR from INFO column.
+ * Ignores header lines (starting with #). Requires GENE= tag to register a variant.
  */
-function inferDiplotype(variants: DetectedVariant[], gene: string): string {
-  const geneVariants = variants.filter((v) => v.gene === gene);
-  if (geneVariants.length === 0) return "*1/*1"; // assume wildtype
+function extractVariants(fileContent: string): DetectedVariant[] {
+  const variants: DetectedVariant[] = [];
+  const lines = fileContent.split("\n");
 
-  const alleles = geneVariants.map((v) => v.star_allele || "*1");
-  if (alleles.length === 1) return `${alleles[0]}/${alleles[0]}`; // homozygous assumption
-  return `${alleles[0]}/${alleles[1]}`;
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.startsWith("#") || line === "") continue;
+
+    const cols = line.split("\t");
+    if (cols.length < 8) continue;
+
+    // Standard VCF columns: CHROM(0) POS(1) ID(2) REF(3) ALT(4) QUAL(5) FILTER(6) INFO(7)
+    const rsid = cols[2] && cols[2] !== "." ? cols[2] : "unknown";
+    const info = cols[7] || "";
+
+    const infoTags = parseInfoTags(info);
+    const gene = (infoTags["GENE"] || infoTags["gene"] || "").toUpperCase();
+    const star = infoTags["STAR"] || infoTags["star"] || infoTags["ALLELE"] || "*1";
+
+    if (gene) {
+      variants.push({ rsid, gene, star_allele: star });
+    }
+  }
+
+  return variants;
 }
 
+/** parseInfoTags – Parses semicolon-delimited key=value pairs from VCF INFO field. */
+function parseInfoTags(info: string): Record<string, string> {
+  const tags: Record<string, string> = {};
+  for (const part of info.split(";")) {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx > 0) {
+      const key = part.slice(0, eqIdx).trim();
+      const val = part.slice(eqIdx + 1).trim();
+      tags[key] = val;
+    }
+  }
+  return tags;
+}
+
+// ─── 2. Diplotype Determination ───────────────────────────────
+
 /**
- * Classifies risk for a given drug based on detected VCF variants.
+ * determineDiplotype – Constructs diplotype string from detected variants for a gene.
+ * If only one allele found, assumes homozygous pairing.
+ */
+function determineDiplotype(variants: DetectedVariant[], gene: string): string {
+  const geneVars = variants.filter((v) => v.gene === gene);
+  if (geneVars.length === 0) return "*1/*1"; // wildtype assumption
+  const alleles = geneVars.map((v) => v.star_allele || "*1");
+  return alleles.length === 1 ? `${alleles[0]}/${alleles[0]}` : `${alleles[0]}/${alleles[1]}`;
+}
+
+// ─── 3. Risk Classifier ───────────────────────────────────────
+
+/**
+ * classifyRisk – Core risk engine.
+ * Iterates pharmacogenomicDB to find gene-diplotype-drug match.
+ * Returns confidence 0.95 (exact), 0.75 (partial), or 0.40 (unknown).
  */
 export function classifyRisk(drug: string, variants: DetectedVariant[]): RiskResult {
-  const drugUpper = drug.toUpperCase();
+  const drugUpper = drug.toUpperCase().trim();
 
-  // Find which gene in DB covers this drug
   for (const [gene, diplotypeMap] of Object.entries(pharmacogenomicDB)) {
-    const diplotype = inferDiplotype(variants, gene);
+    const diplotype = determineDiplotype(variants, gene);
+    const geneVariants = variants.filter((v) => v.gene === gene);
 
     // Exact diplotype match
     if (diplotypeMap[diplotype]) {
       const diplotypeRule = diplotypeMap[diplotype];
       const drugRule = diplotypeRule.drugs[drugUpper];
-
       if (drugRule) {
         return {
           drug,
@@ -512,62 +649,65 @@ export function classifyRisk(drug: string, variants: DetectedVariant[]): RiskRes
           diplotype,
           primary_gene: gene,
           action: drugRule.recommendation,
-          detected_variants: variants.filter((v) => v.gene === gene),
+          detected_variants: geneVariants,
         };
       }
     }
 
-    // Partial match: check if gene covers drug in any diplotype
-    const hasDrugInGene = Object.values(diplotypeMap).some((d) => d.drugs[drugUpper]);
-    if (hasDrugInGene) {
-      // Gene is relevant but diplotype not matched exactly → partial
-      const fallbackDiplotype = Object.keys(diplotypeMap)[0];
-      const fallbackRule = diplotypeMap[fallbackDiplotype];
+    // Partial match: gene covers this drug in some diplotype, but not the exact one
+    const coversDrug = Object.values(diplotypeMap).some((d) => d.drugs[drugUpper]);
+    if (coversDrug) {
+      // Use first diplotype as fallback estimate
+      const fallbackKey = Object.keys(diplotypeMap)[0];
+      const fallbackRule = diplotypeMap[fallbackKey];
       const drugRule = fallbackRule.drugs[drugUpper];
       return {
         drug,
         risk_label: drugRule ? drugRule.risk : "Unknown",
-        severity: drugRule ? drugRule.severity : "unknown",
+        severity: drugRule ? drugRule.severity : "low",
         confidence_score: 0.75,
-        phenotype: fallbackRule.phenotype,
-        diplotype: `${diplotype} (estimated)`,
+        phenotype: `${fallbackRule.phenotype} (estimated)`,
+        diplotype: `${diplotype} (partial match)`,
         primary_gene: gene,
         action: drugRule
-          ? `[Partial match] ${drugRule.recommendation}`
+          ? `[Partial match – ${diplotype} not in DB] ${drugRule.recommendation}`
           : "Insufficient diplotype data. Consult clinical pharmacogenomics specialist.",
-        detected_variants: variants.filter((v) => v.gene === gene),
+        detected_variants: geneVariants,
       };
     }
   }
 
-  // Unknown – no rule found
+  // No gene-drug pairing found
   return {
     drug,
     risk_label: "Unknown",
-    severity: "unknown",
+    severity: "low",
     confidence_score: 0.4,
     phenotype: "Unknown",
     diplotype: "Unknown",
-    primary_gene: "Not detected in VCF",
+    primary_gene: "Not detected",
     action:
-      "No pharmacogenomic data available for this gene-drug pair. Proceed with standard clinical guidelines and monitor for adverse effects.",
+      "No pharmacogenomic data available for this gene-drug pair. Apply standard clinical guidelines and monitor closely for adverse effects.",
     detected_variants: [],
   };
 }
 
-// ─── 3. JSON Output Generator ─────────────────────────────────
+// ─── 4. JSON Output Generator ─────────────────────────────────
 
 /**
- * Generates the standardised PharmaGuard JSON report for one drug.
+ * generateJSON – Produces a schema-compliant PharmaGuardReport.
+ * All fields are explicitly set; no extra keys are added.
  */
 export function generateJSON(
   patientId: string,
   riskResult: RiskResult,
   vcfSuccess: boolean,
   totalVariants: number,
-  llmExplanation: PharmaGuardReport["llm_generated_explanation"]
+  llmExplanation: LLMExplanation
 ): PharmaGuardReport {
-  return {
+  const geneDetected = riskResult.primary_gene !== "Not detected";
+
+  const report: PharmaGuardReport = {
     patient_id: patientId,
     drug: riskResult.drug,
     timestamp: new Date().toISOString(),
@@ -589,130 +729,156 @@ export function generateJSON(
     quality_metrics: {
       vcf_parsing_success: vcfSuccess,
       variants_detected: totalVariants,
+      supported_gene_detected: geneDetected && SUPPORTED_GENES.has(riskResult.primary_gene),
+      cpic_guideline_version: "2024.1",
     },
   };
+
+  // Internal schema validation guard
+  const validationError = validateSchema(report);
+  if (validationError) {
+    throw new Error(`Schema validation failed: ${validationError}`);
+  }
+
+  return report;
 }
 
-// ─── 4. LLM Integration ──────────────────────────────────────
+// ─── 5. LLM Integration ───────────────────────────────────────
 
-const LLM_API_URL = "https://api.openai.com/v1/chat/completions";
-// NOTE: Replace with your actual OpenAI API key via environment variable or user input
-let OPENAI_API_KEY = "";
+/**
+ * API key sourced from Vite env variable: VITE_OPENAI_API_KEY
+ * .env.example:
+ *   VITE_OPENAI_API_KEY=sk-...
+ *
+ * Runtime override also supported via setOpenAIKey() for user-supplied keys.
+ */
+let _runtimeApiKey = "";
 
-export function setOpenAIKey(key: string) {
-  OPENAI_API_KEY = key;
+export function setOpenAIKey(key: string): void {
+  _runtimeApiKey = key.trim();
+}
+
+function getApiKey(): string {
+  return _runtimeApiKey || (import.meta.env.VITE_OPENAI_API_KEY as string) || "";
 }
 
 /**
- * Calls the OpenAI API to generate a pharmacogenomics explanation.
- * Falls back to a rule-based explanation if API key is not set.
+ * callLLM – Requests a structured pharmacogenomic explanation from OpenAI.
+ * Falls back to generateFallbackExplanation() on failure or missing key.
  */
-export async function callLLM(
-  riskResult: RiskResult
-): Promise<PharmaGuardReport["llm_generated_explanation"]> {
-  // If no API key → generate deterministic explanation
-  if (!OPENAI_API_KEY) {
-    return generateRuleBasedExplanation(riskResult);
-  }
+export async function callLLM(riskResult: RiskResult): Promise<LLMExplanation> {
+  const apiKey = getApiKey();
+  if (!apiKey) return generateFallbackExplanation(riskResult);
 
-  const prompt = `You are a clinical pharmacogenomics expert. A patient has the following genomic profile:
+  const variantStr =
+    riskResult.detected_variants.length > 0
+      ? riskResult.detected_variants.map((v) => `${v.rsid} (${v.star_allele})`).join(", ")
+      : "none detected";
 
-Gene: ${riskResult.primary_gene}
+  // Improved CPIC-aligned prompt per hackathon spec
+  const prompt = `You are a board-certified clinical pharmacogenomics expert following CPIC guidelines.
+
+Patient gene: ${riskResult.primary_gene}
 Diplotype: ${riskResult.diplotype}
 Phenotype: ${riskResult.phenotype}
-Drug of interest: ${riskResult.drug}
-Risk classification: ${riskResult.risk_label}
-Detected variants: ${riskResult.detected_variants.map((v) => `${v.rsid} (${v.star_allele})`).join(", ") || "None detected"}
+Drug: ${riskResult.drug}
+Risk: ${riskResult.risk_label}
+Detected variants: ${variantStr}
 
-Explain in three short sections:
-1. Summary: One sentence clinical summary of this drug-gene interaction.
-2. Mechanism: Biological mechanism (enzyme activity, drug metabolism pathway).
-3. Clinical impact: Patient-specific dosing recommendation and monitoring plan.
+Generate a structured response with exactly these four sections:
+1. Summary (2–3 sentences): Clinical summary of this drug-gene interaction.
+2. Biological mechanism: Explain the enzyme/transporter, pathway, and how the diplotype alters drug metabolism.
+3. Clinical implication: Patient-specific risk and expected drug response.
+4. Dosing recommendation: Specific dosing guidance aligned with CPIC Level A evidence.
 
-Be medically concise. Use clinical language. Reference the rsID if available.`;
+Be medically concise and accurate. Do not hallucinate variant identifiers or allele frequencies.`;
 
   try {
-    const response = await fetch(LLM_API_URL, {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 400,
-        temperature: 0.3,
+        max_tokens: 500,
+        temperature: 0.2,
       }),
     });
 
-    if (!response.ok) throw new Error(`OpenAI error: ${response.status}`);
+    if (!response.ok) return generateFallbackExplanation(riskResult);
 
     const data = await response.json();
-    const text: string = data.choices[0]?.message?.content || "";
+    const text: string = data.choices?.[0]?.message?.content || "";
 
-    // Parse the three sections from the response
+    // Map four sections to three output fields
     const summaryMatch = text.match(/1\.\s*Summary[:\s]+(.+?)(?=2\.|$)/is);
-    const mechMatch = text.match(/2\.\s*Mechanism[:\s]+(.+?)(?=3\.|$)/is);
-    const impactMatch = text.match(/3\.\s*Clinical impact[:\s]+(.+?)$/is);
+    const mechMatch = text.match(/2\.\s*Biological mechanism[:\s]+(.+?)(?=3\.|$)/is);
+    const implMatch = text.match(/3\.\s*Clinical implication[:\s]+(.+?)(?=4\.|$)/is);
+    const doseMatch = text.match(/4\.\s*Dosing recommendation[:\s]+(.+?)$/is);
 
     return {
-      summary: summaryMatch?.[1]?.trim() || text.substring(0, 200),
-      mechanism: mechMatch?.[1]?.trim() || "See full AI response above.",
-      clinical_impact: impactMatch?.[1]?.trim() || riskResult.action,
+      summary: summaryMatch?.[1]?.trim() || text.substring(0, 250),
+      mechanism: mechMatch?.[1]?.trim() || "See clinical summary.",
+      clinical_impact: [implMatch?.[1]?.trim(), doseMatch?.[1]?.trim()]
+        .filter(Boolean)
+        .join(" ")
+        || riskResult.action,
     };
   } catch {
-    // Fall back to rule-based if API call fails
-    return generateRuleBasedExplanation(riskResult);
+    return generateFallbackExplanation(riskResult);
   }
 }
 
 /**
- * Generates a structured explanation from the pharmacogenomic rules
- * when no OpenAI API key is available.
+ * generateFallbackExplanation – Deterministic rule-based explanation.
+ * Used when no API key is set or the LLM call fails.
+ * Per spec: "Based on detected variant and CPIC guidelines, this risk assessment
+ * is derived from pharmacogenomic evidence."
  */
-function generateRuleBasedExplanation(
-  r: RiskResult
-): PharmaGuardReport["llm_generated_explanation"] {
-  const variantStr =
-    r.detected_variants.length > 0
-      ? r.detected_variants.map((v) => `${v.rsid} (${v.star_allele})`).join(", ")
-      : "no specific variants";
+function generateFallbackExplanation(r: RiskResult): LLMExplanation {
+  const FALLBACK_BASE = "Based on detected variant and CPIC guidelines, this risk assessment is derived from pharmacogenomic evidence.";
 
-  const summaryMap: Record<string, string> = {
-    "Safe": `Patient's ${r.primary_gene} diplotype (${r.diplotype}) confers ${r.phenotype} status, supporting standard ${r.drug} dosing without pharmacogenomic contraindication.`,
-    "Adjust Dosage": `Patient's ${r.primary_gene} diplotype (${r.diplotype}) indicates ${r.phenotype}, altering ${r.drug} metabolism and requiring dose modification.`,
-    "Toxic / Ineffective": `Patient's ${r.primary_gene} diplotype (${r.diplotype}) indicates ${r.phenotype}, creating a high-risk interaction with ${r.drug} requiring therapy change.`,
-    "Unknown": `Insufficient pharmacogenomic data to assess ${r.drug} risk for this patient's genomic profile.`,
+  const summaryMap: Record<RiskLabel, string> = {
+    Safe: `${r.primary_gene} diplotype ${r.diplotype} confers ${r.phenotype} status — standard ${r.drug} dosing is appropriate without pharmacogenomic contraindication. ${FALLBACK_BASE}`,
+    "Adjust Dosage": `${r.primary_gene} diplotype ${r.diplotype} indicates ${r.phenotype}, requiring modified ${r.drug} dosing. ${FALLBACK_BASE}`,
+    Toxic: `${r.primary_gene} diplotype ${r.diplotype} creates a high-toxicity risk with ${r.drug} — therapy change is recommended. ${FALLBACK_BASE}`,
+    Ineffective: `${r.primary_gene} diplotype ${r.diplotype} indicates ${r.phenotype}, significantly reducing ${r.drug} therapeutic efficacy. ${FALLBACK_BASE}`,
+    Unknown: `Insufficient pharmacogenomic data to assess ${r.drug} interaction. ${FALLBACK_BASE}`,
   };
 
   const mechanismMap: Record<string, string> = {
-    CYP2D6: `CYP2D6 encodes a cytochrome P450 enzyme responsible for oxidative metabolism of ${r.drug}. The ${r.diplotype} diplotype results in ${r.phenotype.toLowerCase()}, affecting drug conversion rates and active metabolite production.`,
-    CYP2C19: `CYP2C19 mediates hepatic activation of prodrugs including ${r.drug}. The ${r.diplotype} diplotype alters enzyme activity, impacting bioactivation efficiency and resultant pharmacological effect.`,
-    CYP2C9: `CYP2C9 is the primary enzyme responsible for ${r.drug} hydroxylation and clearance. The ${r.diplotype} diplotype impairs enzyme function, reducing drug elimination and extending half-life.`,
-    SLCO1B1: `SLCO1B1 encodes the hepatic transporter OATP1B1, which mediates cellular uptake of ${r.drug}. The ${r.diplotype} variant reduces transporter function, increasing plasma drug concentrations and myopathy risk.`,
-    TPMT: `TPMT catalyzes S-methylation of thiopurine drugs including ${r.drug}. Reduced TPMT activity in ${r.diplotype} patients results in accumulation of cytotoxic thioguanine nucleotides, increasing myelosuppression risk.`,
-    DPYD: `DPYD encodes dihydropyrimidine dehydrogenase, the rate-limiting enzyme in ${r.drug} catabolism. The ${r.diplotype} diplotype significantly impairs drug clearance, leading to toxic accumulation of fluoropyrimidines.`,
+    CYP2D6: `CYP2D6 encodes a major cytochrome P450 enzyme responsible for oxidative metabolism of ${r.drug} and ~25% of all clinically used drugs. The ${r.diplotype} diplotype produces ${r.phenotype.toLowerCase()}, directly altering drug bioactivation rates and active metabolite concentrations.`,
+    CYP2C19: `CYP2C19 mediates hepatic bioactivation of prodrugs including ${r.drug}. The ${r.diplotype} diplotype alters enzyme kinetics (Vmax/Km), changing the rate of conversion to pharmacologically active metabolites and downstream receptor binding.`,
+    CYP2C9: `CYP2C9 is the primary enzyme catalysing S-warfarin 7-hydroxylation and clearance. The ${r.diplotype} diplotype impairs enzyme function, extending ${r.drug} half-life and increasing systemic exposure, raising bleeding risk.`,
+    SLCO1B1: `SLCO1B1 encodes the hepatic uptake transporter OATP1B1 (organic anion transporting polypeptide). The ${r.diplotype} variant reduces transporter expression/function, causing elevated plasma ${r.drug} concentrations and increased skeletal muscle exposure, raising myopathy risk.`,
+    TPMT: `TPMT catalyses S-methylation of thiopurine drugs including ${r.drug}. The ${r.diplotype} diplotype reduces TPMT activity, causing accumulation of cytotoxic 6-thioguanine nucleotides (6-TGN) in haematopoietic cells, leading to life-threatening myelosuppression.`,
+    DPYD: `DPYD encodes dihydropyrimidine dehydrogenase, the rate-limiting enzyme responsible for >80% of ${r.drug} catabolism. The ${r.diplotype} diplotype severely impairs DPD function, causing dose-dependent fluoropyrimidine accumulation and systemic toxicity.`,
   };
 
   return {
-    summary: summaryMap[r.risk_label] || summaryMap["Unknown"],
+    summary: summaryMap[r.risk_label],
     mechanism:
       mechanismMap[r.primary_gene] ||
-      `${r.primary_gene} enzyme activity is altered by the ${r.diplotype} diplotype (detected variants: ${variantStr}), affecting ${r.drug} pharmacokinetics.`,
+      `${r.primary_gene} enzyme/transporter activity is altered by the ${r.diplotype} diplotype, affecting ${r.drug} pharmacokinetics and pharmacodynamics. ${FALLBACK_BASE}`,
     clinical_impact: r.action,
   };
 }
 
-// ─── 5. Patient ID Generator ─────────────────────────────────
+// ─── 6. Patient ID Generator ─────────────────────────────────
 
+/** Generates a unique session patient ID (e.g. PG-A3B7K2). */
 export function generatePatientId(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const suffix = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  const suffix = Array.from({ length: 6 }, () =>
+    chars[Math.floor(Math.random() * chars.length)]
+  ).join("");
   return `PG-${suffix}`;
 }
 
-// ─── 6. Full Analysis Pipeline ───────────────────────────────
+// ─── 7. Full Analysis Pipeline ───────────────────────────────
 
 export interface AnalysisResult {
   patientId: string;
@@ -722,48 +888,62 @@ export interface AnalysisResult {
   vcfSuccess: boolean;
   reports: PharmaGuardReport[];
   riskResults: RiskResult[];
+  schemaErrors: string[];
 }
 
 /**
- * Main entry point: runs the full pharmacogenomic analysis pipeline.
+ * runAnalysis – Orchestrates the full pipeline:
  * parseVCF → classifyRisk → callLLM → generateJSON (per drug)
+ * Validates each report schema before including in output.
  */
 export async function runAnalysis(
   vcfContent: string,
   drugs: string[]
 ): Promise<AnalysisResult> {
-  // Step 1: Parse VCF
+  // Normalise drug names to title-case for display, uppercase for lookup
+  const normalisedDrugs = drugs.map((d) => d.trim()).filter(Boolean);
+
   const parsed = parseVCF(vcfContent);
   const patientId = generatePatientId();
 
-  // Step 2: For each drug, classify risk + generate LLM explanation + build JSON
   const reports: PharmaGuardReport[] = [];
   const riskResults: RiskResult[] = [];
+  const schemaErrors: string[] = [];
 
-  for (const drug of drugs) {
+  // Process each drug; prevent duplicate calls with deduplication
+  const seenDrugs = new Set<string>();
+  for (const drug of normalisedDrugs) {
+    const key = drug.toUpperCase();
+    if (seenDrugs.has(key)) continue;
+    seenDrugs.add(key);
+
     const riskResult = classifyRisk(drug, parsed.variants);
     riskResults.push(riskResult);
 
     const llmExplanation = await callLLM(riskResult);
 
-    const report = generateJSON(
-      patientId,
-      riskResult,
-      parsed.success,
-      parsed.variantsFound,
-      llmExplanation
-    );
-
-    reports.push(report);
+    try {
+      const report = generateJSON(
+        patientId,
+        riskResult,
+        parsed.success,
+        parsed.variantsFound,
+        llmExplanation
+      );
+      reports.push(report);
+    } catch (err) {
+      schemaErrors.push(err instanceof Error ? err.message : String(err));
+    }
   }
 
   return {
     patientId,
-    drugs,
+    drugs: normalisedDrugs,
     variants: parsed.variants,
     variantsFound: parsed.variantsFound,
     vcfSuccess: parsed.success,
     reports,
     riskResults,
+    schemaErrors,
   };
 }
