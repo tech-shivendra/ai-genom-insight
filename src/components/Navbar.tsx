@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import generxLogo from "@/assets/generx-logo.png";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const NavLinks = [
   { href: "#about", label: "About" },
@@ -26,7 +27,7 @@ export const Navbar = () => {
       transition={{ duration: 0.5, ease: "easeOut" }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-white/90 backdrop-blur-md shadow-soft border-b border-border py-2"
+          ? "bg-background/90 backdrop-blur-md shadow-soft border-b border-border py-2"
           : "bg-transparent py-4"
       }`}
       aria-label="Main navigation"
@@ -58,6 +59,7 @@ export const Navbar = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <motion.a
             href="#upload"
             whileHover={{ scale: 1.05 }}
@@ -72,7 +74,7 @@ export const Navbar = () => {
 
           {/* Mobile menu button */}
           <button
-            className="md:hidden bg-white/80 rounded-lg p-2 border border-border"
+            className="md:hidden bg-card/80 rounded-lg p-2 border border-border"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle mobile menu"
             aria-expanded={mobileOpen}
@@ -98,7 +100,7 @@ export const Navbar = () => {
             transition={{ duration: 0.3 }}
             className="md:hidden overflow-hidden"
           >
-            <div className="border-t border-border px-4 py-3 space-y-1 bg-white/95 backdrop-blur-md">
+            <div className="border-t border-border px-4 py-3 space-y-1 bg-background/95 backdrop-blur-md">
               {NavLinks.map((l) => (
                 <a
                   key={l.href}
