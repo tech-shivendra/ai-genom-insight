@@ -640,9 +640,17 @@ export function parseVCF(fileContent: string): ParsedVCF {
 }
 
 /**
- * extractVariants – Parses VCF lines, extracting GENE, STAR, RS, CHROM, POS, REF, ALT.
- * Ignores header lines (starting with #). Requires GENE= tag to register a variant.
- * Prefers RS= tag for rsid; falls back to VCF ID column (col[2]).
+ * extractVariants – Production-grade VCF parser with genotype (GT) filtering.
+ *
+ * Steps:
+ *   1. Skip headers and malformed lines (< 8 columns).
+ *   2. Parse standard VCF columns: CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO.
+ *   3. If FORMAT + SAMPLE columns exist (cols ≥ 10), extract GT dynamically:
+ *      - Locate "GT" index in the FORMAT field.
+ *      - Read corresponding value from the SAMPLE field.
+ *      - SKIP variant if GT is homozygous-reference (0/0, 0|0) or missing (./., .|.).
+ *   4. If no FORMAT/SAMPLE columns, include variant (legacy 8-column VCF).
+ *   5. Require GENE= INFO tag to register a variant.
  */
 function extractVariants(lines: string[]): DetectedVariant[] {
   const variants: DetectedVariant[] = [];
@@ -652,9 +660,10 @@ function extractVariants(lines: string[]): DetectedVariant[] {
     if (line.startsWith("#") || line === "") continue;
 
     const cols = line.split("\t");
+    // Minimum 8 columns required: CHROM POS ID REF ALT QUAL FILTER INFO
     if (cols.length < 8) continue;
 
-    // Standard VCF columns: CHROM(0) POS(1) ID(2) REF(3) ALT(4) QUAL(5) FILTER(6) INFO(7)
+    // ── Step 1: Parse standard VCF columns ──
     const chrom = cols[0] || "";
     const pos = parseInt(cols[1], 10);
     const vcfId = cols[2] && cols[2] !== "." ? cols[2] : "";
@@ -662,6 +671,22 @@ function extractVariants(lines: string[]): DetectedVariant[] {
     const alt = cols[4] && cols[4] !== "." ? cols[4] : "";
     const info = cols[7] || "";
 
+    // ── Step 2: Genotype (GT) filtering ──
+    // If FORMAT (col 8) and at least one SAMPLE (col 9) exist, extract GT
+    if (cols.length >= 10) {
+      const formatField = cols[8] || "";
+      const sampleField = cols[9] || "";
+
+      const gt = extractGT(formatField, sampleField);
+
+      // Skip if GT is missing/malformed or homozygous-reference
+      if (gt === null || isHomRef(gt)) {
+        continue;
+      }
+    }
+    // If only 8 columns (no FORMAT/SAMPLE), include variant (legacy VCF support)
+
+    // ── Step 3: Parse INFO tags and build variant ──
     const infoTags = parseInfoTags(info);
     const gene = (infoTags["GENE"] || infoTags["gene"] || "").toUpperCase();
     const star = infoTags["STAR"] || infoTags["star"] || infoTags["ALLELE"] || "*1";
@@ -686,6 +711,45 @@ function extractVariants(lines: string[]): DetectedVariant[] {
   }
 
   return variants;
+}
+
+/**
+ * extractGT – Dynamically locates and extracts the GT value from FORMAT/SAMPLE.
+ * FORMAT is colon-delimited keys (e.g. "GT:DP:GQ:AD:PL").
+ * SAMPLE is colon-delimited values (e.g. "0/1:58:99:30,28:...").
+ * Returns the GT string (e.g. "0/1") or null if GT not found or malformed.
+ */
+function extractGT(format: string, sample: string): string | null {
+  const formatKeys = format.split(":");
+  const gtIndex = formatKeys.indexOf("GT");
+  if (gtIndex === -1) return null; // No GT field in FORMAT
+
+  const sampleValues = sample.split(":");
+  if (gtIndex >= sampleValues.length) return null; // SAMPLE too short
+
+  const gt = sampleValues[gtIndex].trim();
+  return gt || null;
+}
+
+/**
+ * isHomRef – Returns true if genotype is homozygous-reference or missing.
+ * Handles both unphased (/) and phased (|) separators.
+ * 0/0, 0|0 → true (hom-ref, skip)
+ * ./., .|. → true (missing, skip)
+ * 0/1, 1/1, 1|0, 0/2, etc. → false (has alt allele, include)
+ */
+function isHomRef(gt: string): boolean {
+  // Normalize separator to /
+  const normalized = gt.replace(/\|/g, "/");
+  const alleles = normalized.split("/");
+
+  // Missing genotype
+  if (alleles.every((a) => a === ".")) return true;
+
+  // Homozygous reference: all alleles are "0"
+  if (alleles.every((a) => a === "0")) return true;
+
+  return false;
 }
 
 /** parseInfoTags – Parses semicolon-delimited key=value pairs from VCF INFO field. */
@@ -786,18 +850,24 @@ export function classifyRisk(drug: string, variants: DetectedVariant[]): RiskRes
   // Step 2: Filter variants to ONLY the required gene
   const relevantVariants = variants.filter((v) => v.gene === requiredGene);
 
-  // Step 3: No relevant variants → Unknown (NO fallback to Safe/*1/*1)
+  // Step 3: No relevant variants after GT filtering → wildtype *1/*1, NM, Safe
+  // Per CPIC: absence of detected actionable variants implies normal function
   if (relevantVariants.length === 0) {
+    const wildtypeDiplotype = "*1/*1";
+    const wildtypePhenotype = "Normal Metabolizer (NM)";
+    const wildtypeRule = pharmacogenomicDB[requiredGene]?.[wildtypeDiplotype];
+    const wildtypeDrugRule = wildtypeRule?.drugs[drugUpper];
+
     return {
       drug: drugUpper,
-      risk_label: "Unknown",
-      severity: "moderate",
-      confidence_score: 0.4,
-      phenotype: "Unknown",
-      diplotype: "Unknown",
+      risk_label: wildtypeDrugRule?.risk ?? "Safe",
+      severity: wildtypeDrugRule?.severity ?? "none",
+      confidence_score: 0.95,
+      phenotype: wildtypeRule?.phenotype ?? wildtypePhenotype,
+      diplotype: wildtypeDiplotype,
       primary_gene: requiredGene,
-      action: `No ${requiredGene} variants detected in VCF. Cannot determine pharmacogenomic risk. Consult clinical pharmacogenomics specialist.`,
-      dosing_recommendation: "Use standard dosing. Consider clinical pharmacogenomic testing for this gene.",
+      action: wildtypeDrugRule?.recommendation ?? `No actionable ${requiredGene} variants detected. Standard dosing appropriate per CPIC guidelines.`,
+      dosing_recommendation: wildtypeDrugRule?.dosing ?? "Standard dose per prescribing information. No pharmacogenomic adjustment required.",
       detected_variants: [],
     };
   }
