@@ -1,8 +1,9 @@
 import { useState, useRef } from "react";
-import { runAnalysis, setOpenAIKey, AnalysisResult } from "@/lib/pharmacogenomics";
+import { runAnalysis, setOpenAIKey, AnalysisResult, SUPPORTED_DRUGS } from "@/lib/pharmacogenomics";
 
-const DRUGS = [
-  "Warfarin", "Clopidogrel", "Codeine", "Tamoxifen", "Simvastatin",
+// All drugs available in the pharmacogenomic DB
+const DRUG_LIST = [
+  "Warfarin", "Clopidogrel", "Codeine", "Simvastatin",
   "Azathioprine", "Fluorouracil", "Capecitabine", "Omeprazole",
   "Tramadol", "Mercaptopurine", "Metoprolol",
 ];
@@ -17,9 +18,14 @@ const STEP_LABELS: Record<AnalysisStep, string> = {
   idle: "",
   parsing: "Parsing VCF genome data...",
   classifying: "Classifying pharmacogenomic risk...",
-  explaining: "Generating AI explanations...",
-  done: "Complete!",
+  explaining: "Generating CPIC-aligned explanations...",
+  done: "Analysis complete!",
 };
+
+/** Returns true if drug name matches a supported gene-drug pair. */
+function isDrugSupported(drug: string): boolean {
+  return SUPPORTED_DRUGS.has(drug.toUpperCase().trim());
+}
 
 export const UploadSection = ({ onResults }: UploadSectionProps) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -29,32 +35,36 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
   const [analysisStep, setAnalysisStep] = useState<AnalysisStep>("idle");
   const [drugSearch, setDrugSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [vcfParseInfo, setVcfParseInfo] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [openAIKey, setOpenAIKeyState] = useState("");
   const [showKeyInput, setShowKeyInput] = useState(false);
+  const [keySaved, setKeySaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const filteredDrugs = DRUGS.filter(
+  const filteredDrugs = DRUG_LIST.filter(
     (d) => d.toLowerCase().includes(drugSearch.toLowerCase()) && !selectedDrugs.includes(d)
   );
 
   // ── File handling ──────────────────────────────────────────
 
   const handleFileAccept = (file: File) => {
-    setError(null);
-    setVcfParseInfo(null);
+    setFileError(null);
+    setAnalysisError(null);
 
-    if (!file.name.endsWith(".vcf") && !file.name.endsWith(".vcf.gz")) {
-      setError("Invalid file type. Please upload a .vcf file.");
+    if (!file.name.toLowerCase().endsWith(".vcf") && !file.name.toLowerCase().endsWith(".vcf.gz")) {
+      setFileError("Invalid file type. Please upload a .vcf file.");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setError("File too large. Maximum size is 5 MB.");
+      setFileError("File too large. Maximum size is 5 MB.");
+      return;
+    }
+    if (file.size === 0) {
+      setFileError("File is empty. Please upload a valid VCF file.");
       return;
     }
     setUploadedFile(file);
-    setVcfParseInfo(`${file.name} ready — ${(file.size / 1024).toFixed(1)} KB`);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -77,53 +87,75 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
     );
   };
 
+  /** Handles comma-separated drug input on Enter/comma keydown. */
+  const handleDrugSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const terms = drugSearch.split(",").map((t) => t.trim()).filter(Boolean);
+      for (const term of terms) {
+        const match = DRUG_LIST.find((d) => d.toLowerCase() === term.toLowerCase());
+        if (match && !selectedDrugs.includes(match)) {
+          setSelectedDrugs((prev) => [...prev, match]);
+        }
+      }
+      setDrugSearch("");
+    }
+  };
+
+  // Drugs that are selected but not in our DB (warn user)
+  const unsupportedSelected = selectedDrugs.filter((d) => !isDrugSupported(d));
+
   // ── API key ────────────────────────────────────────────────
 
   const handleSaveKey = () => {
     setOpenAIKey(openAIKey.trim());
+    setKeySaved(true);
     setShowKeyInput(false);
+    setTimeout(() => setKeySaved(false), 3000);
   };
 
   // ── Analysis ───────────────────────────────────────────────
 
   const canAnalyze = uploadedFile !== null && selectedDrugs.length > 0 && !isAnalyzing;
 
+  const getButtonLabel = () => {
+    if (!uploadedFile) return "Upload a VCF file to continue";
+    if (selectedDrugs.length === 0) return "Select at least one drug";
+    return "Run Pharmacogenomic Analysis";
+  };
+
   const handleAnalyze = async () => {
     if (!canAnalyze) return;
-    setError(null);
+    setAnalysisError(null);
     setIsAnalyzing(true);
 
     try {
-      // Read VCF file
       setAnalysisStep("parsing");
-      const vcfContent = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.onerror = () => reject(new Error("Failed to read file"));
-        reader.readAsText(uploadedFile!);
-      });
+      const vcfContent = await readFileAsText(uploadedFile!);
 
-      // Small delay so user sees step labels
-      await delay(600);
+      await delay(500);
       setAnalysisStep("classifying");
-      await delay(800);
+      await delay(600);
       setAnalysisStep("explaining");
 
-      // Run full pipeline
       const results = await runAnalysis(vcfContent, selectedDrugs);
 
       if (!results.vcfSuccess) {
-        setError("VCF parsing failed. Please ensure the file is a valid VCF format.");
+        setAnalysisError(
+          "VCF parsing failed. Ensure the file is a valid VCF format with tab-separated columns."
+        );
         return;
       }
 
       setAnalysisStep("done");
-      await delay(400);
+      await delay(300);
 
       onResults(results);
       document.getElementById("results")?.scrollIntoView({ behavior: "smooth" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
+      setAnalysisError(
+        err instanceof Error ? err.message : "Analysis failed. Please try again."
+      );
     } finally {
       setIsAnalyzing(false);
       setAnalysisStep("idle");
@@ -146,12 +178,13 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             Upload & <span className="gradient-text">Analyze</span>
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Upload a real VCF file and select drugs to analyze. The engine parses your genetic
-            variants and applies CPIC-aligned pharmacogenomic rules to generate a risk report.
+            Upload a VCF file with pharmacogenomic annotations and select drugs to analyze.
+            The engine applies CPIC v2024.1-aligned rules to generate a schema-validated risk report.
           </p>
         </div>
 
-        <div className="max-w-3xl mx-auto space-y-6 reveal" style={{ transitionDelay: "0.1s" }}>
+        <div className="max-w-3xl mx-auto space-y-5 reveal" style={{ transitionDelay: "0.1s" }}>
+
           {/* VCF Upload Zone */}
           <div
             className={`drop-zone rounded-2xl p-10 text-center cursor-pointer transition-all duration-300 ${
@@ -185,16 +218,8 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                 </div>
                 <div className="text-neon-green font-semibold">{uploadedFile.name}</div>
                 <div className="text-muted-foreground text-sm">
-                  {(uploadedFile.size / 1024).toFixed(1)} KB · Click to replace
+                  {(uploadedFile.size / 1024).toFixed(1)} KB · VCF validated · Click to replace
                 </div>
-                {vcfParseInfo && (
-                  <div className="inline-flex items-center gap-2 text-xs text-neon-green/80 glass rounded-full px-3 py-1">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    File validated — ready to parse
-                  </div>
-                )}
               </div>
             ) : (
               <div className="space-y-4">
@@ -211,7 +236,9 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                   <p className="text-foreground font-semibold">
                     {isDragging ? "Drop your VCF file here" : "Drag & drop your VCF file"}
                   </p>
-                  <p className="text-muted-foreground text-sm mt-1">or click to browse · .vcf supported · max 5 MB</p>
+                  <p className="text-muted-foreground text-sm mt-1">
+                    or click to browse · .vcf supported · max 5 MB
+                  </p>
                 </div>
                 <div className="inline-flex items-center gap-2 text-xs text-muted-foreground glass rounded-full px-3 py-1">
                   <svg className="w-3 h-3 text-neon-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -223,13 +250,13 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             )}
           </div>
 
-          {/* Error message */}
-          {error && (
+          {/* File error */}
+          {fileError && (
             <div className="flex items-start gap-3 glass rounded-xl p-4 border border-neon-red/30">
               <svg className="w-5 h-5 text-neon-red flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-sm text-neon-red">{error}</p>
+              <p className="text-sm text-neon-red">{fileError}</p>
             </div>
           )}
 
@@ -237,27 +264,53 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
           <div className="glass rounded-2xl p-6 space-y-4">
             <label className="block text-sm font-semibold text-foreground">
               Select Drugs to Analyze
-              <span className="ml-2 text-xs text-muted-foreground font-normal">({selectedDrugs.length} selected)</span>
+              <span className="ml-2 text-xs text-muted-foreground font-normal">
+                ({selectedDrugs.length} selected)
+              </span>
             </label>
 
+            {/* Selected drug chips */}
             {selectedDrugs.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {selectedDrugs.map((drug) => (
-                  <button
-                    key={drug}
-                    onClick={() => toggleDrug(drug)}
-                    className="inline-flex items-center gap-1.5 glass glow-border rounded-full px-3 py-1.5 text-xs font-medium text-neon-cyan hover:bg-neon-cyan/10 transition-all duration-200"
-                    aria-label={`Remove ${drug}`}
-                  >
-                    {drug}
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                ))}
+                {selectedDrugs.map((drug) => {
+                  const unsupported = !isDrugSupported(drug);
+                  return (
+                    <button
+                      key={drug}
+                      onClick={() => toggleDrug(drug)}
+                      className={`inline-flex items-center gap-1.5 glass rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                        unsupported
+                          ? "text-neon-yellow border border-neon-yellow/40 hover:bg-neon-yellow/10"
+                          : "text-neon-cyan glow-border hover:bg-neon-cyan/10"
+                      }`}
+                      aria-label={`Remove ${drug}`}
+                      title={unsupported ? "Drug not in pharmacogenomic database — results will be Unknown" : undefined}
+                    >
+                      {unsupported && <span>⚠</span>}
+                      {drug}
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  );
+                })}
               </div>
             )}
 
+            {/* Unsupported drug warning */}
+            {unsupportedSelected.length > 0 && (
+              <div className="flex items-start gap-2 text-xs text-neon-yellow">
+                <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>
+                  <span className="font-medium">{unsupportedSelected.join(", ")}</span>{" "}
+                  {unsupportedSelected.length === 1 ? "is" : "are"} not in the pharmacogenomic database — analysis will return Unknown risk.
+                </span>
+              </div>
+            )}
+
+            {/* Drug search input */}
             <div className="relative">
               <input
                 type="text"
@@ -265,13 +318,15 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                 onChange={(e) => { setDrugSearch(e.target.value); setDropdownOpen(true); }}
                 onFocus={() => setDropdownOpen(true)}
                 onBlur={() => setTimeout(() => setDropdownOpen(false), 200)}
-                placeholder="Search drugs (e.g. Warfarin, Codeine...)"
+                onKeyDown={handleDrugSearchKeyDown}
+                placeholder="Search drugs (e.g. Warfarin, Codeine) or type comma-separated"
                 className="w-full bg-muted/50 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/30 transition-all"
                 aria-label="Search drugs"
               />
               <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
+
               {dropdownOpen && filteredDrugs.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-2 glass-strong rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto shadow-card-dark">
                   {filteredDrugs.map((drug) => (
@@ -281,6 +336,9 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                       className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-neon-cyan/10 hover:text-neon-cyan transition-colors"
                     >
                       {drug}
+                      {!isDrugSupported(drug) && (
+                        <span className="ml-2 text-xs text-neon-yellow">⚠ not in DB</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -288,7 +346,17 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             </div>
           </div>
 
-          {/* OpenAI API Key (optional) */}
+          {/* Analysis error */}
+          {analysisError && (
+            <div className="flex items-start gap-3 glass rounded-xl p-4 border border-neon-red/30">
+              <svg className="w-5 h-5 text-neon-red flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm text-neon-red">{analysisError}</p>
+            </div>
+          )}
+
+          {/* OpenAI API key (optional) */}
           <div className="glass rounded-xl p-4">
             <button
               onClick={() => setShowKeyInput((v) => !v)}
@@ -299,8 +367,11 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
                 <span>
-                  <span className="text-neon-purple font-medium">Optional:</span> Add OpenAI API key for AI explanations
+                  <span className="text-neon-purple font-medium">Optional:</span> OpenAI API key for GPT explanations
                 </span>
+                {keySaved && (
+                  <span className="text-xs text-neon-green font-medium">✓ Saved</span>
+                )}
               </div>
               <svg className={`w-4 h-4 transition-transform duration-200 ${showKeyInput ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -309,15 +380,18 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             {showKeyInput && (
               <div className="mt-3 space-y-2">
                 <p className="text-xs text-muted-foreground">
-                  Without an API key, rule-based explanations are generated automatically. Your key is never stored.
+                  Without a key, deterministic rule-based CPIC explanations are generated automatically.
+                  Your key is never stored or transmitted beyond the OpenAI API call.
                 </p>
                 <div className="flex gap-2">
                   <input
                     type="password"
                     value={openAIKey}
                     onChange={(e) => setOpenAIKeyState(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSaveKey()}
                     placeholder="sk-..."
                     className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-purple/50 transition-all"
+                    aria-label="OpenAI API key"
                   />
                   <button
                     onClick={handleSaveKey}
@@ -331,7 +405,7 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             )}
           </div>
 
-          {/* VCF Format Guide */}
+          {/* VCF format guide */}
           <details className="glass rounded-xl p-4 group">
             <summary className="flex items-center justify-between cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors list-none">
               <div className="flex items-center gap-2">
@@ -346,7 +420,9 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             </summary>
             <div className="mt-3 space-y-3">
               <p className="text-xs text-muted-foreground">
-                The engine parses the <code className="text-neon-cyan">INFO</code> column for <code className="text-neon-cyan">GENE=</code> and <code className="text-neon-cyan">STAR=</code> tags.
+                The engine reads the <code className="text-neon-cyan">INFO</code> column for{" "}
+                <code className="text-neon-cyan">GENE=</code> and{" "}
+                <code className="text-neon-cyan">STAR=</code> tags (tab-delimited, 8+ columns).
               </p>
               <pre className="text-xs font-mono text-muted-foreground bg-muted/30 rounded-lg p-3 overflow-x-auto leading-relaxed">{`##fileformat=VCFv4.1
 #CHROM  POS       ID          REF  ALT  QUAL  FILTER  INFO
@@ -355,16 +431,7 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
 10      96702047  rs1799853   C    T    .     PASS    GENE=CYP2C9;STAR=*2;RS=rs1799853
 12      21331549  rs4149056   T    C    .     PASS    GENE=SLCO1B1;STAR=*5;RS=rs4149056`}</pre>
               <button
-                onClick={() => {
-                  const sample = `##fileformat=VCFv4.1\n##source=PharmaGuardSample\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n1\t97915614\trs1065852\tC\tT\t.\tPASS\tGENE=CYP2D6;STAR=*4;RS=rs1065852\n10\t96741053\trs4244285\tG\tA\t.\tPASS\tGENE=CYP2C19;STAR=*2;RS=rs4244285\n10\t96702047\trs1799853\tC\tT\t.\tPASS\tGENE=CYP2C9;STAR=*2;RS=rs1799853\n12\t21331549\trs4149056\tT\tC\t.\tPASS\tGENE=SLCO1B1;STAR=*5;RS=rs4149056\n1\t47702338\trs1800460\tC\tT\t.\tPASS\tGENE=TPMT;STAR=*3A;RS=rs1800460\n1\t97305364\trs3918290\tC\tT\t.\tPASS\tGENE=DPYD;STAR=*2A;RS=rs3918290`;
-                  const blob = new Blob([sample], { type: "text/plain" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "sample_pharmaguard.vcf";
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
+                onClick={downloadSampleVCF}
                 className="inline-flex items-center gap-2 text-xs font-medium text-neon-cyan hover:underline"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -375,7 +442,7 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             </div>
           </details>
 
-          {/* Submit button */}
+          {/* Analyze button */}
           <button
             onClick={handleAnalyze}
             disabled={!canAnalyze}
@@ -384,7 +451,11 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
               background: isAnalyzing
                 ? "linear-gradient(135deg, hsl(265 60% 40%), hsl(265 60% 35%))"
                 : "linear-gradient(135deg, hsl(183 100% 35%), hsl(175 80% 30%))",
-              boxShadow: isAnalyzing ? "var(--glow-purple)" : canAnalyze ? "var(--glow-cyan)" : "none",
+              boxShadow: isAnalyzing
+                ? "var(--glow-purple)"
+                : canAnalyze
+                ? "var(--glow-cyan)"
+                : "none",
             }}
             aria-label="Analyze patient data"
           >
@@ -401,18 +472,14 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                {!uploadedFile
-                  ? "Upload a VCF file to continue"
-                  : selectedDrugs.length === 0
-                  ? "Select at least one drug"
-                  : "Run Pharmacogenomic Analysis"}
+                {getButtonLabel()}
               </span>
             )}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
           </button>
 
           {/* Validation hint */}
-          {(!uploadedFile || selectedDrugs.length === 0) && (
+          {(!uploadedFile || selectedDrugs.length === 0) && !isAnalyzing && (
             <p className="text-center text-xs text-muted-foreground">
               {!uploadedFile && selectedDrugs.length === 0
                 ? "Upload a VCF file and select at least one drug to enable analysis"
@@ -427,7 +494,40 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
   );
 };
 
-// Utility: simple async delay
-function delay(ms: number) {
+// ─── Utilities ────────────────────────────────────────────────
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target?.result as string);
+    reader.onerror = () => reject(new Error("Failed to read file. Please try again."));
+    reader.readAsText(file);
+  });
+}
+
+function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function downloadSampleVCF() {
+  const sample = [
+    "##fileformat=VCFv4.1",
+    "##source=PharmaGuard-Sample",
+    "##reference=GRCh38",
+    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
+    "1\t97915614\trs1065852\tC\tT\t.\tPASS\tGENE=CYP2D6;STAR=*4;RS=rs1065852",
+    "10\t96741053\trs4244285\tG\tA\t.\tPASS\tGENE=CYP2C19;STAR=*2;RS=rs4244285",
+    "10\t96702047\trs1799853\tC\tT\t.\tPASS\tGENE=CYP2C9;STAR=*2;RS=rs1799853",
+    "12\t21331549\trs4149056\tT\tC\t.\tPASS\tGENE=SLCO1B1;STAR=*5;RS=rs4149056",
+    "6\t18128556\trs1800460\tC\tT\t.\tPASS\tGENE=TPMT;STAR=*3A;RS=rs1800460",
+    "1\t97305364\trs3918290\tC\tT\t.\tPASS\tGENE=DPYD;STAR=*2A;RS=rs3918290",
+  ].join("\n");
+
+  const blob = new Blob([sample], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "sample_pharmaguard.vcf";
+  a.click();
+  URL.revokeObjectURL(url);
 }
