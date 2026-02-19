@@ -577,12 +577,35 @@ export const pharmacogenomicDB: PharmaDB = {
 // Set of supported gene names (derived from DB keys)
 const SUPPORTED_GENES = new Set(Object.keys(pharmacogenomicDB));
 
-// Set of all supported drug names across the DB (uppercase)
-export const SUPPORTED_DRUGS: Set<string> = new Set(
-  Object.values(pharmacogenomicDB).flatMap((diplotypeMap) =>
-    Object.values(diplotypeMap).flatMap((d) => Object.keys(d.drugs))
-  )
-);
+// ─── Drug → Gene Mapping (CPIC) ──────────────────────────────
+/** Exact mapping: each drug requires analysis of one specific gene */
+export const DRUG_GENE_MAP: Record<string, string> = {
+  CODEINE: "CYP2D6",
+  TRAMADOL: "CYP2D6",
+  METOPROLOL: "CYP2D6",
+  WARFARIN: "CYP2C9",
+  CLOPIDOGREL: "CYP2C19",
+  OMEPRAZOLE: "CYP2C19",
+  SIMVASTATIN: "SLCO1B1",
+  AZATHIOPRINE: "TPMT",
+  MERCAPTOPURINE: "TPMT",
+  FLUOROURACIL: "DPYD",
+  CAPECITABINE: "DPYD",
+};
+
+// Set of all supported drug names (uppercase)
+export const SUPPORTED_DRUGS: Set<string> = new Set(Object.keys(DRUG_GENE_MAP));
+
+// ─── Activity Scoring per Gene (CPIC) ─────────────────────────
+/** Star allele → activity score for phenotype determination */
+const ACTIVITY_SCORES: Record<string, Record<string, number>> = {
+  CYP2D6: { "*1": 1.0, "*2": 1.0, "*4": 0.0, "*5": 0.0, "*10": 0.5, "*41": 0.5, "*1xN": 3.0 },
+  CYP2C19: { "*1": 1.0, "*2": 0.0, "*3": 0.0, "*17": 1.5 },
+  CYP2C9: { "*1": 1.0, "*2": 0.5, "*3": 0.25 },
+  SLCO1B1: { "*1": 1.0, "*5": 0.5, "*15": 0.5 },
+  TPMT: { "*1": 1.0, "*2": 0.0, "*3A": 0.0, "*3B": 0.0, "*3C": 0.0 },
+  DPYD: { "*1": 1.0, "*2A": 0.0, "*13": 0.5 },
+};
 
 // ─── 1. VCF Parser ────────────────────────────────────────────
 
@@ -682,14 +705,13 @@ function parseInfoTags(info: string): Record<string, string> {
 // ─── 2. Diplotype Determination ───────────────────────────────
 
 /**
- * determineDiplotype – Constructs diplotype string from detected variants for a gene.
- * Handles heterozygous (2+ alleles), homozygous (1 allele duplicated), and wildtype (*1/*1).
+ * determineDiplotype – Constructs diplotype from relevant variants for a gene.
+ * Returns null if no variants found (caller must handle Unknown).
  */
-function determineDiplotype(variants: DetectedVariant[], gene: string): string {
-  const geneVars = variants.filter((v) => v.gene === gene);
-  if (geneVars.length === 0) return "*1/*1"; // wildtype assumption
+function determineDiplotype(relevantVariants: DetectedVariant[]): string | null {
+  if (relevantVariants.length === 0) return null; // No variants → Unknown
 
-  const alleles = geneVars.map((v) => v.star_allele || "*1");
+  const alleles = relevantVariants.map((v) => v.star_allele || "*1");
 
   if (alleles.length === 1) {
     // Single detected allele: heterozygous with wildtype assumption
@@ -699,79 +721,174 @@ function determineDiplotype(variants: DetectedVariant[], gene: string): string {
   return `${alleles[0]}/${alleles[1]}`;
 }
 
+// ─── 2b. Activity-Score Phenotype Engine ──────────────────────
+
+/**
+ * determinePhenotype – Uses CPIC activity scoring to derive phenotype.
+ * Sums activity scores for each allele in relevant variants.
+ * Falls back to gene-specific thresholds.
+ */
+function determinePhenotype(relevantVariants: DetectedVariant[], gene: string): string {
+  const geneScores = ACTIVITY_SCORES[gene];
+  if (!geneScores) return "Unknown";
+
+  // Sum activity scores: each variant contributes one allele; pair with *1 if single
+  let alleles: string[];
+  if (relevantVariants.length === 0) return "Unknown";
+  else if (relevantVariants.length === 1) {
+    alleles = ["*1", relevantVariants[0].star_allele || "*1"];
+  } else {
+    alleles = relevantVariants.slice(0, 2).map((v) => v.star_allele || "*1");
+  }
+
+  const score = alleles.reduce((sum, a) => sum + (geneScores[a] ?? 0), 0);
+
+  if (score === 0) return "Poor Metabolizer (PM)";
+  if (score <= 1) return "Intermediate Metabolizer (IM)";
+  if (score <= 2) return "Normal Metabolizer (NM)";
+  return "Ultrarapid Metabolizer (UM)";
+}
+
 // ─── 3. Risk Classifier ───────────────────────────────────────
 
 /**
- * classifyRisk – Core risk engine.
- * Iterates pharmacogenomicDB to find gene-diplotype-drug match.
- * Returns confidence 0.95 (exact), 0.75 (partial), or 0.40 (unknown).
+ * classifyRisk – Core risk engine (refactored).
+ *
+ * 1. Maps drug → required gene via DRUG_GENE_MAP
+ * 2. Filters parsed variants to ONLY those matching the required gene
+ * 3. If no relevant variants → Unknown (never defaults to Safe)
+ * 4. Builds diplotype from relevant variants only
+ * 5. Uses activity scoring for phenotype
+ * 6. Looks up risk in pharmacogenomicDB
+ * 7. detected_variants contains ONLY relevant variants
+ * 8. variants_detected = relevant variant count
  */
 export function classifyRisk(drug: string, variants: DetectedVariant[]): RiskResult {
   const drugUpper = drug.toUpperCase().trim();
 
-  for (const [gene, diplotypeMap] of Object.entries(pharmacogenomicDB)) {
-    const diplotype = determineDiplotype(variants, gene);
-    const geneVariants = variants.filter((v) => v.gene === gene);
+  // Step 1: Drug → Gene mapping
+  const requiredGene = DRUG_GENE_MAP[drugUpper];
+  if (!requiredGene) {
+    return {
+      drug: drugUpper,
+      risk_label: "Unknown",
+      severity: "moderate",
+      confidence_score: 0.4,
+      phenotype: "Unknown",
+      diplotype: "Unknown",
+      primary_gene: "Not detected",
+      action: `Drug "${drugUpper}" is not in the supported drug-gene map. Apply standard clinical guidelines.`,
+      dosing_recommendation: "Use standard dosing per prescribing information. No pharmacogenomic data available.",
+      detected_variants: [],
+    };
+  }
 
-    // Exact diplotype match
-    if (diplotypeMap[diplotype]) {
-      const diplotypeRule = diplotypeMap[diplotype];
-      const drugRule = diplotypeRule.drugs[drugUpper];
-      if (drugRule) {
-        return {
-          drug,
-          risk_label: drugRule.risk,
-          severity: drugRule.severity,
-          confidence_score: 0.95,
-          phenotype: diplotypeRule.phenotype,
-          diplotype,
-          primary_gene: gene,
-          action: drugRule.recommendation,
-          dosing_recommendation: drugRule.dosing,
-          detected_variants: geneVariants,
-        };
-      }
-    }
+  // Step 2: Filter variants to ONLY the required gene
+  const relevantVariants = variants.filter((v) => v.gene === requiredGene);
 
-    // Partial match: gene covers this drug in some diplotype, but not the exact one
-    const coversDrug = Object.values(diplotypeMap).some((d) => d.drugs[drugUpper]);
-    if (coversDrug) {
-      const fallbackKey = Object.keys(diplotypeMap)[0];
-      const fallbackRule = diplotypeMap[fallbackKey];
-      const drugRule = fallbackRule.drugs[drugUpper];
+  // Step 3: No relevant variants → Unknown (NO fallback to Safe/*1/*1)
+  if (relevantVariants.length === 0) {
+    return {
+      drug: drugUpper,
+      risk_label: "Unknown",
+      severity: "moderate",
+      confidence_score: 0.4,
+      phenotype: "Unknown",
+      diplotype: "Unknown",
+      primary_gene: requiredGene,
+      action: `No ${requiredGene} variants detected in VCF. Cannot determine pharmacogenomic risk. Consult clinical pharmacogenomics specialist.`,
+      dosing_recommendation: "Use standard dosing. Consider clinical pharmacogenomic testing for this gene.",
+      detected_variants: [],
+    };
+  }
+
+  // Step 4: Build diplotype from relevant variants
+  const diplotype = determineDiplotype(relevantVariants)!;
+
+  // Step 5: Activity-score phenotype
+  const phenotype = determinePhenotype(relevantVariants, requiredGene);
+
+  // Step 6: Lookup in pharmacogenomicDB
+  const diplotypeMap = pharmacogenomicDB[requiredGene];
+
+  if (diplotypeMap && diplotypeMap[diplotype]) {
+    const diplotypeRule = diplotypeMap[diplotype];
+    const drugRule = diplotypeRule.drugs[drugUpper];
+    if (drugRule) {
       return {
-        drug,
-        risk_label: drugRule ? drugRule.risk : "Unknown",
-        severity: drugRule ? drugRule.severity : "low",
-        confidence_score: 0.75,
-        phenotype: `${fallbackRule.phenotype} (estimated)`,
-        diplotype: `${diplotype} (partial match)`,
-        primary_gene: gene,
-        action: drugRule
-          ? `[Partial match – ${diplotype} not in DB] ${drugRule.recommendation}`
-          : "Insufficient diplotype data. Consult clinical pharmacogenomics specialist.",
-        dosing_recommendation: drugRule
-          ? `[Estimated] ${drugRule.dosing}`
-          : "Consult clinical pharmacogenomics specialist for dosing guidance.",
-        detected_variants: geneVariants,
+        drug: drugUpper,
+        risk_label: drugRule.risk,
+        severity: drugRule.severity,
+        confidence_score: 0.95,
+        phenotype: diplotypeRule.phenotype,
+        diplotype,
+        primary_gene: requiredGene,
+        action: drugRule.recommendation,
+        dosing_recommendation: drugRule.dosing,
+        detected_variants: relevantVariants,
       };
     }
   }
 
-  // No gene-drug pairing found
+  // Step 6b: Partial match — diplotype found but drug not in that diplotype's rules
+  // Use activity-score phenotype and derive risk from phenotype
+  const phenotypeRisk = deriveRiskFromPhenotype(drugUpper, phenotype, requiredGene);
+
   return {
-    drug,
-    risk_label: "Unknown",
-    severity: "low",
-    confidence_score: 0.4,
-    phenotype: "Unknown",
-    diplotype: "Unknown",
-    primary_gene: "Not detected",
-    action:
-      "No pharmacogenomic data available for this gene-drug pair. Apply standard clinical guidelines and monitor closely for adverse effects.",
-    dosing_recommendation:
-      "Use standard dosing per prescribing information. No pharmacogenomic adjustment available. Monitor closely for adverse effects.",
-    detected_variants: [],
+    drug: drugUpper,
+    risk_label: phenotypeRisk.risk_label,
+    severity: phenotypeRisk.severity,
+    confidence_score: 0.75,
+    phenotype,
+    diplotype,
+    primary_gene: requiredGene,
+    action: phenotypeRisk.action,
+    dosing_recommendation: phenotypeRisk.dosing,
+    detected_variants: relevantVariants,
+  };
+}
+
+/**
+ * deriveRiskFromPhenotype – When exact diplotype-drug rule not found,
+ * infer risk from the activity-score-derived phenotype.
+ */
+function deriveRiskFromPhenotype(
+  drug: string,
+  phenotype: string,
+  gene: string
+): { risk_label: RiskLabel; severity: Severity; action: string; dosing: string } {
+  const isProdrug = ["CODEINE", "TRAMADOL", "CLOPIDOGREL"].includes(drug);
+
+  if (phenotype.includes("Poor")) {
+    return {
+      risk_label: isProdrug ? "Ineffective" : "Toxic",
+      severity: "high",
+      action: `${gene} Poor Metabolizer status detected. ${isProdrug ? "Drug activation severely impaired — use alternative." : "Drug clearance severely reduced — reduce dose or use alternative."}`,
+      dosing: `Consult CPIC guidelines for ${gene} Poor Metabolizer ${drug} dosing. Consider alternative therapy.`,
+    };
+  }
+  if (phenotype.includes("Intermediate")) {
+    return {
+      risk_label: "Adjust Dosage",
+      severity: "moderate",
+      action: `${gene} Intermediate Metabolizer — dose adjustment recommended for ${drug}.`,
+      dosing: `Reduce ${drug} dose per CPIC guidelines. Monitor clinical response closely.`,
+    };
+  }
+  if (phenotype.includes("Ultrarapid")) {
+    return {
+      risk_label: isProdrug ? "Toxic" : "Adjust Dosage",
+      severity: isProdrug ? "critical" : "moderate",
+      action: `${gene} Ultrarapid Metabolizer. ${isProdrug ? "Excessive active metabolite production — life-threatening toxicity risk." : "Accelerated clearance — dose increase may be needed."}`,
+      dosing: `${isProdrug ? "AVOID " + drug + ". Use non-" + gene + "-substrate alternative." : "Consider dose increase. Monitor efficacy."}`,
+    };
+  }
+  // Normal / Rapid
+  return {
+    risk_label: "Safe",
+    severity: "none",
+    action: `${gene} ${phenotype} — standard ${drug} dosing appropriate.`,
+    dosing: `Standard dosing per prescribing information. No pharmacogenomic adjustment required.`,
   };
 }
 
@@ -786,10 +903,13 @@ export function generateJSON(
   patientId: string,
   riskResult: RiskResult,
   vcfSuccess: boolean,
-  totalVariants: number,
+  _totalVariants: number,
   llmExplanation: LLMExplanation
 ): PharmaGuardReport {
   const geneDetected = riskResult.primary_gene !== "Not detected";
+
+  // variants_detected = ONLY the relevant variants for this drug's gene
+  const relevantCount = riskResult.detected_variants.length;
 
   const report: PharmaGuardReport = {
     patient_id: patientId,
@@ -813,7 +933,7 @@ export function generateJSON(
     llm_generated_explanation: llmExplanation,
     quality_metrics: {
       vcf_parsing_success: vcfSuccess,
-      variants_detected: totalVariants,
+      variants_detected: relevantCount,
       supported_gene_detected: geneDetected && SUPPORTED_GENES.has(riskResult.primary_gene),
       cpic_guideline_version: "2024.1",
     },
