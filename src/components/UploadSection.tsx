@@ -335,7 +335,7 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
 
               {dropdownOpen && filteredDrugs.length > 0 && (
                 <div
-                  className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto shadow-card border border-border"
+                  className="absolute top-full left-0 right-0 mt-2 bg-card rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto shadow-card border border-border"
                   role="listbox"
                   aria-label="Drug suggestions"
                 >
@@ -370,7 +370,7 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
                       className={`text-xs px-3 py-1 rounded-full border transition-all duration-200 ${
                         selected
                           ? "bg-primary/10 text-primary border-primary/40"
-                          : "bg-white text-muted-foreground border-border hover:text-foreground hover:border-primary/30"
+                          : "bg-card text-muted-foreground border-border hover:text-foreground hover:border-primary/30"
                       }`}
                     >
                       {selected && "✓ "}{drug}
@@ -471,7 +471,7 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
             {(uploadedFile || hasResults) && !isAnalyzing && (
               <button
                 onClick={handleReset}
-                className="px-4 py-4 rounded-xl font-medium text-sm bg-white border border-border text-muted-foreground hover:text-foreground hover:border-warm-red/40 hover:text-warm-red transition-all duration-200"
+                className="px-4 py-4 rounded-xl font-medium text-sm bg-card border border-border text-muted-foreground hover:text-foreground hover:border-warm-red/40 hover:text-warm-red transition-all duration-200"
                 aria-label="Reset analysis"
                 title="Clear file and results"
               >

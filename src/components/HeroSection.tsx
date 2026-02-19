@@ -173,10 +173,13 @@ export const HeroSection = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.4 }}
-              className="text-lg text-muted-foreground max-w-lg leading-relaxed"
+              className="text-lg text-muted-foreground max-w-lg leading-relaxed word-reveal"
             >
-              Upload a VCF file. Select a drug. Get instant, CPIC-aligned risk predictions
-              with transparent AI explanations.
+              {["Upload", "a", "VCF", "file.", "Select", "a", "drug.", "Get", "instant,", "CPIC-aligned", "risk", "predictions", "with", "transparent", "AI", "explanations."].map((word, i) => (
+                <span key={i} style={{ animationDelay: `${0.5 + i * 0.06}s` }}>
+                  {word}&nbsp;
+                </span>
+              ))}
             </motion.p>
 
             {/* Problem framing */}
@@ -235,7 +238,7 @@ export const HeroSection = () => {
                 href="#about"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.98 }}
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold bg-white border border-border hover:border-primary/40 hover:shadow-warm transition-all duration-300"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold bg-card text-foreground border border-border hover:border-primary/40 hover:shadow-warm transition-all duration-300"
               >
                 How It Works
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -248,7 +251,7 @@ export const HeroSection = () => {
                 download="sample_generx.vcf"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.98 }}
-                className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-sm bg-white border border-warm-green/30 text-warm-green hover:bg-warm-green/5 transition-all duration-300"
+                className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-sm bg-card border border-warm-green/30 text-warm-green hover:bg-warm-green/5 transition-all duration-300"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
