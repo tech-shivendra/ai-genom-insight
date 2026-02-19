@@ -127,13 +127,31 @@ export const HeroSection = () => {
               <span className="text-neon-cyan font-medium">CPIC clinical guidelines</span>.
             </p>
 
+            {/* Problem framing */}
+            <div
+              className="glass rounded-xl p-4 border border-neon-red/20 animate-fade-in"
+              style={{ animationDelay: "0.35s" }}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center" style={{ background: "hsl(0 90% 60% / 0.15)" }}>
+                  <svg className="w-4 h-4" style={{ color: "hsl(0 90% 60%)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  <span className="font-bold" style={{ color: "hsl(0 90% 65%)" }}>100,000+ Americans die annually</span>{" "}
+                  from preventable adverse drug reactions — many due to undetected pharmacogenomic variants. PharmaGuard changes that.
+                </p>
+              </div>
+            </div>
+
             {/* Stats row */}
             <div
               className="flex gap-8 animate-fade-in"
               style={{ animationDelay: "0.4s" }}
             >
               {[
-              { label: "Genes Covered", value: "6" },
+                { label: "Genes Covered", value: "6" },
                 { label: "Drug-Gene Pairs", value: "30+" },
                 { label: "CPIC Level", value: "A" },
               ].map((s) => (
@@ -175,6 +193,16 @@ export const HeroSection = () => {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
+              </a>
+              <a
+                href="/sample.vcf"
+                download="sample_pharmaguard.vcf"
+                className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-sm glass border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-all duration-300"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Sample VCF
               </a>
             </div>
           </div>
