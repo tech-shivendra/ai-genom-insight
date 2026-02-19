@@ -918,11 +918,13 @@ export function classifyRisk(drug: string, variants: DetectedVariant[]): RiskRes
     const diplotypeRule = diplotypeMap[diplotype];
     const drugRule = diplotypeRule.drugs[drugUpper];
     if (drugRule) {
+      // Confidence: 0.95 for exact diplotype match with both alleles detected
+      const confidence = relevantVariants.length >= 2 ? 0.98 : 0.90;
       return {
         drug: drugUpper,
         risk_label: drugRule.risk,
         severity: drugRule.severity,
-        confidence_score: 0.95,
+        confidence_score: confidence,
         phenotype: diplotypeRule.phenotype,
         diplotype,
         primary_gene: requiredGene,
@@ -1050,7 +1052,96 @@ export function generateJSON(
   return report;
 }
 
-// ─── 5. LLM Integration ───────────────────────────────────────
+// ─── 5a. Phenotype-Aware Language Engine ──────────────────────
+
+/**
+ * Returns phenotype-specific language constraints for LLM prompts
+ * and fallback explanations. Ensures scientifically accurate descriptions.
+ */
+function getPhenotypeLanguageConstraint(phenotype: string): string {
+  if (phenotype.includes("Normal") || phenotype.includes("NM") || phenotype.includes("NF")) {
+    return `The patient is a NORMAL metabolizer. You MUST use language like:
+- "confers normal enzymatic activity"
+- "results in expected drug metabolism"
+- "typical pharmacokinetics"
+- "standard systemic exposure"
+You MUST NOT use: "reduces", "impairs", "alters", "increases toxicity risk", "accumulation", "diminished", "deficient".`;
+  }
+  if (phenotype.includes("Intermediate") || phenotype.includes("IM") || phenotype.includes("DF") || phenotype.includes("Decreased")) {
+    return `The patient is an INTERMEDIATE metabolizer. Use language like:
+- "reduces enzymatic activity"
+- "partially impairs metabolism"
+- "moderately increases exposure"
+- "may increase toxicity risk"`;
+  }
+  if (phenotype.includes("Poor") || phenotype.includes("PM") || phenotype.includes("PF")) {
+    return `The patient is a POOR metabolizer. Use language like:
+- "severely impairs enzyme function"
+- "minimal or absent activity"
+- "markedly increases systemic exposure"
+- "high risk of toxicity or treatment failure"`;
+  }
+  if (phenotype.includes("Ultrarapid") || phenotype.includes("UM")) {
+    return `The patient is an ULTRARAPID metabolizer. Use language like:
+- "markedly increased enzymatic activity"
+- "accelerated drug clearance or excessive metabolite production"
+- "risk of toxicity (prodrugs) or therapeutic failure (non-prodrugs)"`;
+  }
+  if (phenotype.includes("Rapid") || phenotype.includes("RM")) {
+    return `The patient is a RAPID metabolizer. Use language like:
+- "mildly increased enzymatic activity"
+- "slightly accelerated metabolism"
+- "generally adequate drug response expected"`;
+  }
+  return "Describe the phenotype accurately based on clinical evidence.";
+}
+
+/**
+ * Gene-specific mechanism builder — phenotype-aware.
+ * Produces biologically accurate mechanism text that matches the phenotype severity.
+ */
+function buildMechanism(gene: string, diplotype: string, phenotype: string, drug: string): string {
+  const isNormal = phenotype.includes("Normal") || phenotype.includes("NM") || phenotype.includes("NF");
+  const isIM = phenotype.includes("Intermediate") || phenotype.includes("IM") || phenotype.includes("DF") || phenotype.includes("Decreased");
+  const isPM = phenotype.includes("Poor") || phenotype.includes("PM") || phenotype.includes("PF");
+  const isUM = phenotype.includes("Ultrarapid") || phenotype.includes("UM");
+
+  // Phenotype-dependent activity descriptor
+  const activityDesc = isNormal
+    ? "confers normal enzymatic activity, resulting in expected drug metabolism and typical pharmacokinetics"
+    : isIM
+    ? "reduces enzymatic activity, partially impairing metabolism and moderately increasing systemic exposure"
+    : isPM
+    ? "severely impairs enzyme function with minimal or absent activity, markedly increasing systemic exposure"
+    : isUM
+    ? "markedly increases enzymatic activity, accelerating drug metabolism beyond typical rates"
+    : "produces an atypical metabolic profile";
+
+  switch (gene) {
+    case "CYP2D6":
+      return `CYP2D6 encodes a major cytochrome P450 enzyme responsible for oxidative metabolism of ${drug} and ~25% of all clinically used drugs. The ${diplotype} diplotype ${activityDesc}. ${isNormal ? "Active metabolite production proceeds at standard rates with predictable analgesic response." : isPM ? "Prodrug activation is negligible, resulting in therapeutic failure for prodrugs or parent drug accumulation for directly active substrates." : isUM ? "Excessive active metabolite production occurs, creating risk of toxicity for prodrugs like codeine." : "Active metabolite concentrations are altered, requiring dose adjustment to maintain therapeutic efficacy."}`;
+
+    case "CYP2C19":
+      return `CYP2C19 mediates hepatic bioactivation of prodrugs including ${drug}. The ${diplotype} diplotype ${activityDesc}. ${isNormal ? "Conversion to pharmacologically active metabolites proceeds at expected rates with standard receptor binding." : isPM ? "Prodrug activation is severely impaired, with minimal conversion to the active thiol metabolite." : "The rate of conversion to active metabolites is altered, affecting downstream pharmacological response."}`;
+
+    case "CYP2C9":
+      return `CYP2C9 is the primary enzyme catalysing S-warfarin 7-hydroxylation and clearance. The ${diplotype} diplotype ${activityDesc}. ${isNormal ? "Standard clearance rates produce predictable INR response within the typical dose range." : isPM ? "Drug half-life is markedly extended with significantly increased systemic exposure and elevated bleeding risk." : "Drug clearance is moderately reduced, requiring dose adjustment to maintain target INR."}`;
+
+    case "SLCO1B1":
+      return `SLCO1B1 encodes the hepatic uptake transporter OATP1B1, responsible for hepatocellular uptake of ${drug}. The ${diplotype} diplotype ${isNormal ? "confers normal transporter function, resulting in expected hepatic uptake and standard plasma concentrations" : isIM || phenotype.includes("Decreased") ? "reduces transporter function, moderately increasing plasma ${drug} concentrations and skeletal muscle exposure" : isPM ? "severely impairs transporter function, markedly elevating plasma concentrations and substantially increasing myopathy risk" : activityDesc}.`;
+
+    case "TPMT":
+      return `TPMT catalyses S-methylation of thiopurine drugs including ${drug}, diverting substrate away from cytotoxic 6-thioguanine nucleotide (6-TGN) production. The ${diplotype} diplotype ${activityDesc}. ${isNormal ? "Thiopurine methylation proceeds at normal rates, maintaining 6-TGN concentrations within the therapeutic range." : isPM ? "Methylation is virtually absent, causing accumulation of cytotoxic 6-TGN in haematopoietic cells and life-threatening myelosuppression." : "Reduced methylation capacity leads to moderately elevated 6-TGN levels with increased myelosuppression risk."}`;
+
+    case "DPYD":
+      return `DPYD encodes dihydropyrimidine dehydrogenase (DPD), the rate-limiting enzyme responsible for >80% of ${drug} catabolism. The ${diplotype} diplotype ${activityDesc}. ${isNormal ? "Fluoropyrimidine catabolism proceeds at expected rates with standard systemic exposure." : isPM ? "DPD function is minimal or absent, causing dose-dependent fluoropyrimidine accumulation and severe systemic toxicity." : "Reduced DPD activity moderately increases fluoropyrimidine exposure, elevating the risk of dose-limiting toxicities."}`;
+
+    default:
+      return `${gene} activity is characterized by the ${diplotype} diplotype, which ${activityDesc}. This affects ${drug} pharmacokinetics and pharmacodynamics.`;
+  }
+}
+
+// ─── 5b. LLM Integration ──────────────────────────────────────
 
 /**
  * API key sourced from Vite env variable: VITE_GEMINI_API_KEY
@@ -1081,6 +1172,9 @@ export async function callLLM(riskResult: RiskResult): Promise<LLMExplanation> {
       ? riskResult.detected_variants.map((v) => `${v.rsid} (${v.star_allele})`).join(", ")
       : "none detected";
 
+  // Phenotype-aware constraint for LLM to prevent scientifically incorrect language
+  const phenotypeConstraint = getPhenotypeLanguageConstraint(riskResult.phenotype);
+
   const prompt = `You are a board-certified clinical pharmacogenomics expert following CPIC guidelines.
 
 Patient gene: ${riskResult.primary_gene}
@@ -1090,9 +1184,12 @@ Drug: ${riskResult.drug}
 Risk: ${riskResult.risk_label}
 Detected variants: ${variantStr}
 
+CRITICAL PHENOTYPE CONSTRAINT:
+${phenotypeConstraint}
+
 Generate a structured response with exactly these four sections:
 1. Summary (2–3 sentences): Clinical summary of this drug-gene interaction.
-2. Biological mechanism: Explain the enzyme/transporter, pathway, and how the diplotype alters drug metabolism.
+2. Biological mechanism: Explain the enzyme/transporter, pathway, and how the diplotype affects drug metabolism. ${riskResult.primary_gene === "SLCO1B1" ? "Use 'transporter function' not 'enzyme function'." : ""} ${riskResult.primary_gene === "TPMT" ? "Mention thiopurine methylation and 6-TGN accumulation risk." : ""} ${riskResult.primary_gene === "DPYD" ? "Mention DPD catabolism of fluoropyrimidines." : ""}
 3. Clinical implication: Patient-specific risk and expected drug response.
 4. Dosing recommendation: Specific dosing guidance aligned with CPIC Level A evidence.
 
@@ -1132,35 +1229,28 @@ Be medically concise and accurate. Do not hallucinate variant identifiers or all
 }
 
 /**
- * generateFallbackExplanation – Deterministic CPIC-aligned explanation.
+ * generateFallbackExplanation – Phenotype-aware deterministic CPIC-aligned explanation.
  * Used when no API key is provided or LLM call fails.
+ * Language is dynamically selected based on phenotype to ensure scientific accuracy.
  */
 function generateFallbackExplanation(r: RiskResult): LLMExplanation {
-  const FALLBACK_BASE =
-    "Based on detected variant and CPIC guidelines, this risk assessment is derived from pharmacogenomic evidence.";
+  const isNormal = r.phenotype.includes("Normal") || r.phenotype.includes("NM") || r.phenotype.includes("NF");
 
+  // Phenotype-aware summary — NM never uses negative language
   const summaryMap: Record<RiskLabel, string> = {
-    Safe: `${r.primary_gene} diplotype ${r.diplotype} confers ${r.phenotype} status — standard ${r.drug} dosing is appropriate without pharmacogenomic contraindication. ${FALLBACK_BASE}`,
-    "Adjust Dosage": `${r.primary_gene} diplotype ${r.diplotype} indicates ${r.phenotype}, requiring modified ${r.drug} dosing. ${FALLBACK_BASE}`,
-    Toxic: `${r.primary_gene} diplotype ${r.diplotype} creates a high-toxicity risk with ${r.drug} — therapy change is recommended. ${FALLBACK_BASE}`,
-    Ineffective: `${r.primary_gene} diplotype ${r.diplotype} indicates ${r.phenotype}, significantly reducing ${r.drug} therapeutic efficacy. ${FALLBACK_BASE}`,
-    Unknown: `Insufficient pharmacogenomic data to assess ${r.drug} interaction. ${FALLBACK_BASE}`,
+    Safe: `${r.primary_gene} diplotype ${r.diplotype} confers ${r.phenotype} status with normal enzymatic activity — standard ${r.drug} dosing is appropriate. Expected drug metabolism and typical pharmacokinetics are predicted.`,
+    "Adjust Dosage": `${r.primary_gene} diplotype ${r.diplotype} indicates ${r.phenotype}, with ${isNormal ? "expected" : "reduced"} metabolic capacity requiring ${isNormal ? "standard" : "modified"} ${r.drug} dosing per CPIC guidelines.`,
+    Toxic: `${r.primary_gene} diplotype ${r.diplotype} severely impairs enzyme function, creating a high-toxicity risk with ${r.drug}. Therapy change is strongly recommended per CPIC Level A evidence.`,
+    Ineffective: `${r.primary_gene} diplotype ${r.diplotype} indicates ${r.phenotype}, with minimal or absent metabolic activation significantly reducing ${r.drug} therapeutic efficacy.`,
+    Unknown: `Insufficient pharmacogenomic data to assess ${r.drug} interaction. Standard clinical guidelines should be applied.`,
   };
 
-  const mechanismMap: Record<string, string> = {
-    CYP2D6: `CYP2D6 encodes a major cytochrome P450 enzyme responsible for oxidative metabolism of ${r.drug} and ~25% of all clinically used drugs. The ${r.diplotype} diplotype produces ${r.phenotype.toLowerCase()}, directly altering drug bioactivation rates and active metabolite concentrations.`,
-    CYP2C19: `CYP2C19 mediates hepatic bioactivation of prodrugs including ${r.drug}. The ${r.diplotype} diplotype alters enzyme kinetics (Vmax/Km), changing the rate of conversion to pharmacologically active metabolites and downstream receptor binding.`,
-    CYP2C9: `CYP2C9 is the primary enzyme catalysing S-warfarin 7-hydroxylation and clearance. The ${r.diplotype} diplotype impairs enzyme function, extending ${r.drug} half-life and increasing systemic exposure, raising bleeding risk.`,
-    SLCO1B1: `SLCO1B1 encodes the hepatic uptake transporter OATP1B1. The ${r.diplotype} variant reduces transporter expression/function, causing elevated plasma ${r.drug} concentrations and increased skeletal muscle exposure, raising myopathy risk.`,
-    TPMT: `TPMT catalyses S-methylation of thiopurine drugs including ${r.drug}. The ${r.diplotype} diplotype reduces TPMT activity, causing accumulation of cytotoxic 6-thioguanine nucleotides (6-TGN) in haematopoietic cells, leading to life-threatening myelosuppression.`,
-    DPYD: `DPYD encodes dihydropyrimidine dehydrogenase, the rate-limiting enzyme responsible for >80% of ${r.drug} catabolism. The ${r.diplotype} diplotype severely impairs DPD function, causing dose-dependent fluoropyrimidine accumulation and systemic toxicity.`,
-  };
+  // Gene-specific, phenotype-aware mechanism via buildMechanism()
+  const mechanism = buildMechanism(r.primary_gene, r.diplotype, r.phenotype, r.drug);
 
   return {
     summary: summaryMap[r.risk_label],
-    mechanism:
-      mechanismMap[r.primary_gene] ||
-      `${r.primary_gene} enzyme/transporter activity is altered by the ${r.diplotype} diplotype, affecting ${r.drug} pharmacokinetics and pharmacodynamics. ${FALLBACK_BASE}`,
+    mechanism,
     clinical_impact: r.action,
   };
 }
