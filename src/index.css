@@ -64,6 +64,61 @@
     --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.05);
     --shadow-hover: 0 30px 70px rgba(0, 0, 0, 0.12);
   }
+
+  .dark {
+    --background: 220 20% 6%;
+    --foreground: 210 20% 92%;
+
+    --card: 220 18% 10%;
+    --card-foreground: 210 20% 92%;
+
+    --popover: 220 18% 10%;
+    --popover-foreground: 210 20% 92%;
+
+    --primary: 175 80% 50%;
+    --primary-foreground: 220 20% 6%;
+
+    --secondary: 270 60% 60%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 220 15% 15%;
+    --muted-foreground: 210 10% 55%;
+
+    --accent: 175 70% 45%;
+    --accent-foreground: 220 20% 6%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 18%;
+    --input: 220 15% 15%;
+    --ring: 175 80% 50%;
+
+    /* Custom Design Tokens — Neon Palette */
+    --warm-coral: 175 80% 50%;
+    --warm-coral-light: 175 70% 60%;
+    --warm-sand: 270 50% 55%;
+    --warm-cream: 220 20% 6%;
+    --warm-teal: 175 80% 50%;
+    --warm-green: 145 70% 50%;
+    --warm-yellow: 50 90% 55%;
+    --warm-red: 0 70% 55%;
+
+    /* Sidebar */
+    --sidebar-background: 220 18% 8%;
+    --sidebar-foreground: 210 20% 92%;
+    --sidebar-primary: 175 80% 50%;
+    --sidebar-primary-foreground: 220 20% 6%;
+    --sidebar-accent: 220 15% 14%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 220 15% 18%;
+    --sidebar-ring: 175 80% 50%;
+
+    /* Shadows */
+    --shadow-card: 0 20px 50px rgba(0, 0, 0, 0.4);
+    --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.3);
+    --shadow-hover: 0 30px 70px rgba(0, 0, 0, 0.5);
+  }
 }
 
 @layer base {
@@ -118,9 +173,9 @@
     box-shadow: var(--shadow-hover);
   }
 
-  /* Glass — now a subtle frosted white */
+  /* Glass */
   .glass {
-    background: hsl(0 0% 100% / 0.8);
+    background: hsl(var(--card) / 0.8);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid hsl(var(--border));
@@ -128,7 +183,7 @@
   }
 
   .glass-strong {
-    background: hsl(0 0% 100% / 0.95);
+    background: hsl(var(--card) / 0.95);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid hsl(var(--border));
@@ -197,7 +252,7 @@
 
   /* Upload drop zone */
   .drop-zone {
-    background: hsl(0 0% 100% / 0.6);
+    background: hsl(var(--card) / 0.6);
     border: 2px dashed hsl(var(--warm-coral) / 0.35);
     transition: all 0.3s ease;
   }
