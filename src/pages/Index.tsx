@@ -5,6 +5,7 @@ import { AboutSection } from "@/components/AboutSection";
 import { UploadSection } from "@/components/UploadSection";
 import { ResultsSection } from "@/components/ResultsSection";
 import { ExplainabilitySection } from "@/components/ExplainabilitySection";
+import { CTASection } from "@/components/CTASection";
 import { FooterSection } from "@/components/FooterSection";
 import { useScrollReveal } from "@/hooks/use-animations";
 import { AnalysisResult } from "@/lib/pharmacogenomics";
@@ -53,6 +54,7 @@ const Index = () => {
         />
         {results && <ResultsSection results={results} onNewAnalysis={handleReset} />}
         <ExplainabilitySection />
+        <CTASection />
       </main>
       <FooterSection />
     </div>

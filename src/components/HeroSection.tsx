@@ -1,52 +1,83 @@
 import { useEffect, useRef, useState } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
 import heroBg from "@/assets/hero-bg.jpg";
 
-const DNAStrand = () => (
-  <svg
-    className="absolute inset-0 w-full h-full opacity-10"
-    viewBox="0 0 400 800"
-    preserveAspectRatio="xMidYMid slice"
-  >
-    {Array.from({ length: 20 }).map((_, i) => {
-      const y = i * 40;
-      const x1 = 50 + Math.sin((i * Math.PI) / 5) * 80;
-      const x2 = 350 - Math.sin((i * Math.PI) / 5) * 80;
-      return (
-        <g key={i}>
-          <circle cx={x1} cy={y} r="4" fill="hsl(183 100% 50%)" opacity={0.8 - i * 0.02} />
-          <circle cx={x2} cy={y} r="4" fill="hsl(265 70% 65%)" opacity={0.8 - i * 0.02} />
-          <line x1={x1} y1={y} x2={x2} y2={y} stroke="hsl(183 100% 50%)" strokeWidth="1" opacity="0.3" />
-        </g>
-      );
-    })}
-  </svg>
-);
+const AnimatedCounter = ({ target, suffix = "" }: { target: string; suffix?: string }) => {
+  const [count, setCount] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const isNumber = !isNaN(Number(target));
+
+  useEffect(() => {
+    if (!isNumber) return;
+    const num = Number(target);
+    let frame: number;
+    let start = 0;
+    const duration = 2000;
+    const startTime = performance.now();
+
+    const animate = (now: number) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(eased * num));
+      if (progress < 1) frame = requestAnimationFrame(animate);
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          frame = requestAnimationFrame(animate);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    if (ref.current) observer.observe(ref.current);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [target, isNumber]);
+
+  return (
+    <div ref={ref} className="text-3xl md:text-4xl font-display font-bold gradient-text tabular-nums">
+      {isNumber ? count : target}{suffix}
+    </div>
+  );
+};
 
 const FloatingCard = () => (
-  <div className="glass-strong rounded-2xl p-5 w-64 animate-float-slow">
+  <motion.div
+    initial={{ opacity: 0, y: 40 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.8, delay: 0.6 }}
+    className="glass-strong rounded-2xl p-5 w-72"
+  >
     <div className="flex items-center gap-3 mb-4">
       <div className="w-8 h-8 rounded-full bg-neon-cyan/20 flex items-center justify-center">
         <div className="w-3 h-3 rounded-full bg-neon-cyan animate-pulse" />
       </div>
       <div>
         <div className="text-xs text-muted-foreground">Patient ID</div>
-        <div className="text-sm font-semibold text-foreground">PG-2847-K</div>
+        <div className="text-sm font-semibold text-foreground font-mono">PG-2847-K</div>
       </div>
       <div className="ml-auto badge-safe px-2 py-0.5 rounded-full text-xs font-medium">Safe</div>
     </div>
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       {[
         { gene: "CYP2D6", drug: "Codeine", risk: "safe", pct: 92 },
         { gene: "CYP2C19", drug: "Clopidogrel", risk: "adjust", pct: 61 },
         { gene: "VKORC1", drug: "Warfarin", risk: "toxic", pct: 28 },
       ].map((row) => (
         <div key={row.gene} className="flex items-center gap-2">
-          <div className="text-xs text-muted-foreground w-14">{row.gene}</div>
+          <div className="text-xs text-muted-foreground w-16 font-mono">{row.gene}</div>
           <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
+            <motion.div
+              className="h-full rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${row.pct}%` }}
+              transition={{ duration: 1.2, delay: 1 + row.pct * 0.005, ease: "easeOut" }}
               style={{
-                width: `${row.pct}%`,
                 background:
                   row.risk === "safe"
                     ? "hsl(145 80% 50%)"
@@ -56,183 +87,232 @@ const FloatingCard = () => (
               }}
             />
           </div>
-          <div className="text-xs font-medium text-foreground w-8">{row.pct}%</div>
+          <div className="text-xs font-medium text-foreground w-8 font-mono">{row.pct}%</div>
         </div>
       ))}
     </div>
     <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
       <span className="text-xs text-muted-foreground">AI Confidence</span>
-      <span className="text-xs font-bold text-neon-cyan">97.4%</span>
+      <span className="text-xs font-bold text-neon-cyan font-mono">97.4%</span>
     </div>
-  </div>
+  </motion.div>
 );
 
 export const HeroSection = () => {
-  const [scrollY, setScrollY] = useState(0);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start start", "end start"],
+  });
 
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  const bgY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
+  const contentY = useTransform(scrollYProgress, [0, 1], ["0%", "15%"]);
+  const opacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
 
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden">
+    <section ref={sectionRef} className="relative min-h-screen flex items-center overflow-hidden">
       {/* Parallax background */}
-      <div
-        className="absolute inset-0 z-0"
-        style={{ transform: `translateY(${scrollY * 0.4}px)` }}
+      <motion.div className="absolute inset-0 z-0" style={{ y: bgY }}>
+        <img src={heroBg} alt="" className="w-full h-[120%] object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/60 to-background" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-transparent" />
+      </motion.div>
+
+      {/* Dot grid overlay */}
+      <div className="absolute inset-0 z-0 opacity-20" style={{
+        backgroundImage: "radial-gradient(hsl(183 100% 50% / 0.15) 1px, transparent 1px)",
+        backgroundSize: "32px 32px",
+      }} />
+
+      {/* Ambient orbs */}
+      <div className="absolute top-20 left-1/4 w-72 h-72 rounded-full bg-neon-cyan/5 blur-[100px] pointer-events-none z-0" />
+      <div className="absolute bottom-20 right-1/4 w-96 h-96 rounded-full bg-neon-purple/5 blur-[120px] pointer-events-none z-0" />
+
+      <motion.div
+        className="container relative z-10 mx-auto px-4 pt-24 pb-16"
+        style={{ y: contentY, opacity }}
       >
-        <img src={heroBg} alt="" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/50 to-background" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-transparent" />
-      </div>
-
-      {/* Grid pattern overlay */}
-      <div className="absolute inset-0 grid-pattern opacity-30 z-0" />
-
-      {/* Floating orbs */}
-      <div className="absolute top-20 left-1/4 w-64 h-64 rounded-full bg-neon-cyan/5 blur-3xl animate-pulse-glow pointer-events-none z-0" />
-      <div className="absolute bottom-32 right-1/4 w-96 h-96 rounded-full bg-neon-purple/5 blur-3xl animate-pulse-glow-purple pointer-events-none z-0" />
-
-      <div className="container relative z-10 mx-auto px-4 pt-20">
-        <div className="grid lg:grid-cols-2 gap-12 items-center min-h-[80vh]">
+        <div className="grid lg:grid-cols-2 gap-16 items-center min-h-[80vh]">
           {/* Left content */}
           <div className="space-y-8">
             {/* Badge */}
-            <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-sm animate-fade-in">
-              <div className="w-2 h-2 rounded-full bg-neon-cyan animate-pulse" />
-              <span className="text-neon-cyan font-medium">AI-Powered Precision Medicine</span>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-sm"
+            >
+              <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
+              <span className="text-foreground/80 font-medium">Pharmacogenomics × AI</span>
+            </motion.div>
 
             {/* Title */}
-            <div className="space-y-3 animate-slide-up" style={{ animationDelay: "0.1s" }}>
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-display font-black leading-[1.05] tracking-tight">
-                <span className="text-foreground">Precision</span>
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.1 }}
+              className="space-y-2"
+            >
+              <h1 className="text-5xl md:text-6xl lg:text-[4.5rem] font-display font-bold leading-[1.05] tracking-tight">
+                <span className="text-foreground">Know Your</span>
                 <br />
-                <span className="gradient-text-purple">Medicine</span>
+                <span className="gradient-text-purple">Drug Risk</span>
                 <br />
-                <span className="text-foreground">Powered by</span>{" "}
-                <span className="neon-text">AI</span>
+                <span className="text-foreground">Before You</span>{" "}
+                <span className="relative">
+                  <span className="text-foreground">Prescribe</span>
+                  <motion.span
+                    className="absolute -bottom-1 left-0 h-[3px] rounded-full"
+                    style={{ background: "linear-gradient(90deg, hsl(183 100% 50%), hsl(265 70% 65%))" }}
+                    initial={{ width: "0%" }}
+                    animate={{ width: "100%" }}
+                    transition={{ duration: 0.8, delay: 1 }}
+                  />
+                </span>
               </h1>
-            </div>
+            </motion.div>
 
             {/* Subtitle */}
-            <p
-              className="text-lg text-muted-foreground max-w-lg leading-relaxed animate-fade-in"
-              style={{ animationDelay: "0.3s" }}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="text-lg text-muted-foreground max-w-lg leading-relaxed"
             >
-              Upload Genetic Data. Get Personalized Drug Risk Insights. Powered by pharmacogenomic
-              analysis aligned with{" "}
-              <span className="text-neon-cyan font-medium">CPIC clinical guidelines</span>.
-            </p>
+              Upload a VCF file. Select a drug. Get instant, CPIC-aligned risk predictions
+              with transparent AI explanations.
+            </motion.p>
 
             {/* Problem framing */}
-            <div
-              className="glass rounded-xl p-4 border border-neon-red/20 animate-fade-in"
-              style={{ animationDelay: "0.35s" }}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
+              className="glass rounded-xl p-4 border-l-2"
+              style={{ borderLeftColor: "hsl(0 90% 60% / 0.6)" }}
             >
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center" style={{ background: "hsl(0 90% 60% / 0.15)" }}>
-                  <svg className="w-4 h-4" style={{ color: "hsl(0 90% 60%)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  <span className="font-bold" style={{ color: "hsl(0 90% 65%)" }}>100,000+ Americans die annually</span>{" "}
-                  from preventable adverse drug reactions — many due to undetected pharmacogenomic variants. PharmaGuard changes that.
-                </p>
-              </div>
-            </div>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                <span className="font-bold" style={{ color: "hsl(0 90% 65%)" }}>100,000+ Americans die annually</span>{" "}
+                from preventable adverse drug reactions — many due to undetected pharmacogenomic variants.
+              </p>
+            </motion.div>
 
             {/* Stats row */}
-            <div
-              className="flex gap-8 animate-fade-in"
-              style={{ animationDelay: "0.4s" }}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.6 }}
+              className="flex gap-10"
             >
               {[
-                { label: "Genes Covered", value: "6" },
-                { label: "Drug-Gene Pairs", value: "30+" },
-                { label: "CPIC Level", value: "A" },
+                { label: "Genes Covered", value: "6", suffix: "" },
+                { label: "Drug-Gene Pairs", value: "30", suffix: "+" },
+                { label: "CPIC Level", value: "A", suffix: "" },
               ].map((s) => (
                 <div key={s.label}>
-                  <div className="text-2xl font-bold gradient-text">{s.value}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
+                  <AnimatedCounter target={s.value} suffix={s.suffix} />
+                  <div className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">{s.label}</div>
                 </div>
               ))}
-            </div>
+            </motion.div>
 
             {/* CTA buttons */}
-            <div
-              className="flex flex-col sm:flex-row gap-4 animate-fade-in"
-              style={{ animationDelay: "0.5s" }}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.7 }}
+              className="flex flex-col sm:flex-row gap-3"
             >
-              <a
+              <motion.a
                 href="#upload"
-                className="group relative inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold text-primary-foreground overflow-hidden transition-all duration-300 animate-pulse-glow"
+                whileHover={{ scale: 1.03, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                className="group relative inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold text-primary-foreground overflow-hidden transition-shadow duration-300"
                 style={{
                   background: "linear-gradient(135deg, hsl(183 100% 40%), hsl(175 80% 35%))",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform = "translateY(-2px) scale(1.02)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.transform = "translateY(0) scale(1)";
+                  boxShadow: "0 0 20px hsl(183 100% 50% / 0.3), 0 0 60px hsl(183 100% 50% / 0.1)",
                 }}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 Analyze Patient Data
-              </a>
-              <a
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+              </motion.a>
+
+              <motion.a
                 href="#about"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold glass glow-border transition-all duration-300 hover:bg-neon-cyan/10"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold glass border border-border/50 hover:border-neon-cyan/40 transition-all duration-300"
               >
-                Learn More
+                How It Works
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
-              </a>
-              <a
+              </motion.a>
+
+              <motion.a
                 href="/sample.vcf"
                 download="sample_pharmaguard.vcf"
-                className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-sm glass border border-neon-green/30 text-neon-green hover:bg-neon-green/10 transition-all duration-300"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-sm glass border border-neon-green/30 text-neon-green hover:bg-neon-green/5 transition-all duration-300"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
                 Sample VCF
-              </a>
-            </div>
+              </motion.a>
+            </motion.div>
           </div>
 
           {/* Right: floating card */}
           <div className="hidden lg:flex justify-center items-center">
             <div className="relative">
-              <div className="absolute -inset-4 rounded-3xl bg-neon-cyan/5 blur-2xl animate-pulse-glow" />
+              <div className="absolute -inset-8 rounded-3xl bg-neon-cyan/3 blur-3xl" />
               <FloatingCard />
               {/* Secondary floating cards */}
-              <div className="absolute -top-12 -right-10 glass rounded-xl p-3 animate-float text-xs">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, delay: 1.2 }}
+                className="absolute -top-14 -right-12 glass rounded-xl p-3 text-xs"
+              >
                 <div className="text-muted-foreground">Variant Found</div>
-                <div className="text-neon-cyan font-bold">CYP2D6*4</div>
-              </div>
-              <div className="absolute -bottom-10 -left-10 glass rounded-xl p-3 animate-float-delayed text-xs">
+                <div className="text-neon-cyan font-bold font-mono">CYP2D6*4</div>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, delay: 1.4 }}
+                className="absolute -bottom-12 -left-12 glass rounded-xl p-3 text-xs"
+              >
                 <div className="text-muted-foreground">Risk Level</div>
                 <div className="text-neon-green font-bold">✓ Low Risk</div>
-              </div>
+              </motion.div>
             </div>
           </div>
         </div>
 
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-bounce-soft">
-          <span className="text-xs text-muted-foreground uppercase tracking-widest">Scroll</span>
-          <div className="w-5 h-9 glass rounded-full flex items-start justify-center p-1">
-            <div className="w-1.5 h-3 bg-neon-cyan rounded-full animate-data-stream" />
-          </div>
-        </div>
-      </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 2 }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
+        >
+          <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">Scroll</span>
+          <motion.div
+            animate={{ y: [0, 8, 0] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+          </motion.div>
+        </motion.div>
+      </motion.div>
     </section>
   );
 };
