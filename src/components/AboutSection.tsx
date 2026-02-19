@@ -1,7 +1,6 @@
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { useTiltEffect } from "@/hooks/use-animations";
-import { StaggerContainer, StaggerItem } from "@/components/ui/stagger-wrapper";
 
 const features = [
   {
@@ -120,13 +119,11 @@ export const AboutSection = () => {
           </p>
         </motion.div>
 
-        <StaggerContainer className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-20">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-20">
           {features.map((f, i) => (
-            <StaggerItem key={f.title} variant={i % 2 === 0 ? "fadeUp" : "scale"}>
-              <FeatureCard feature={f} index={i} />
-            </StaggerItem>
+            <FeatureCard key={f.title} feature={f} index={i} />
           ))}
-        </StaggerContainer>
+        </div>
 
         {/* Pipeline visualization */}
         <motion.div

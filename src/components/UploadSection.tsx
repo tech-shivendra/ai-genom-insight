@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 import { runAnalysis, AnalysisResult, SUPPORTED_DRUGS } from "@/lib/pharmacogenomics";
-import { StaggerContainer, StaggerItem } from "@/components/ui/stagger-wrapper";
 
 // All drugs available in the pharmacogenomic DB (displayed in dropdown)
 const DRUG_LIST = [
@@ -177,27 +176,21 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
 
       <div className="container mx-auto px-4">
         {/* Header */}
-        <StaggerContainer className="text-center mb-12">
-          <StaggerItem>
-            <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-sm mb-6">
-              <div className="w-2 h-2 rounded-full bg-neon-cyan animate-pulse" />
-              <span className="text-neon-cyan font-medium">Genomic Analysis Engine</span>
-            </div>
-          </StaggerItem>
-          <StaggerItem>
-            <h2 className="text-4xl md:text-5xl font-display font-black mb-4">
-              Upload & <span className="gradient-text">Analyze</span>
-            </h2>
-          </StaggerItem>
-          <StaggerItem>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              Upload a VCF file with pharmacogenomic annotations and select drugs to analyze.
-              The engine applies CPIC v2024.1-aligned rules to generate a schema-validated risk report.
-            </p>
-          </StaggerItem>
-        </StaggerContainer>
+        <div className="text-center mb-12 reveal">
+          <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-sm mb-6">
+            <div className="w-2 h-2 rounded-full bg-neon-cyan animate-pulse" />
+            <span className="text-neon-cyan font-medium">Genomic Analysis Engine</span>
+          </div>
+          <h2 className="text-4xl md:text-5xl font-display font-black mb-4">
+            Upload & <span className="gradient-text">Analyze</span>
+          </h2>
+          <p className="text-muted-foreground max-w-xl mx-auto">
+            Upload a VCF file with pharmacogenomic annotations and select drugs to analyze.
+            The engine applies CPIC v2024.1-aligned rules to generate a schema-validated risk report.
+          </p>
+        </div>
 
-        <StaggerContainer className="max-w-3xl mx-auto space-y-5" delay={0.2}>
+        <div className="max-w-3xl mx-auto space-y-5 reveal" style={{ transitionDelay: "0.1s" }}>
 
           {/* VCF Upload Zone */}
           <div
@@ -505,7 +498,7 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
                 : "Select at least one drug to analyze"}
             </p>
           )}
-        </StaggerContainer>
+        </div>
       </div>
     </section>
   );

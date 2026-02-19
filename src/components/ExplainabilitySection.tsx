@@ -1,7 +1,6 @@
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { useTiltEffect } from "@/hooks/use-animations";
-import { StaggerContainer, StaggerItem } from "@/components/ui/stagger-wrapper";
 
 const variants = [
   {
@@ -138,13 +137,11 @@ export const ExplainabilitySection = () => {
         </motion.div>
 
         {/* Variant cards */}
-        <StaggerContainer className="grid md:grid-cols-3 gap-4 mb-24">
+        <div className="grid md:grid-cols-3 gap-4 mb-24">
           {variants.map((v, i) => (
-            <StaggerItem key={v.gene} variant="scale">
-              <VariantCard variant={v} index={i} />
-            </StaggerItem>
+            <VariantCard key={v.gene} variant={v} index={i} />
           ))}
-        </StaggerContainer>
+        </div>
 
         {/* Timeline */}
         <motion.div
