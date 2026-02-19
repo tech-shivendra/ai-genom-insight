@@ -11,7 +11,6 @@ const features = [
     ),
     title: "VCF v4.2 Parsing",
     desc: "Validates VCF headers and extracts pharmacogenomic variants from INFO tags with strict format checking.",
-    color: "cyan" as const,
   },
   {
     icon: (
@@ -21,7 +20,6 @@ const features = [
     ),
     title: "Diplotype → Phenotype",
     desc: "Star allele pairs mapped to metabolizer phenotypes across CYP2D6, CYP2C19, CYP2C9, SLCO1B1, TPMT, DPYD.",
-    color: "purple" as const,
   },
   {
     icon: (
@@ -31,7 +29,6 @@ const features = [
     ),
     title: "Risk Classification",
     desc: "CPIC engine classifies drug risks as Safe, Adjust Dosage, Toxic, Ineffective, or Unknown with confidence scores.",
-    color: "cyan" as const,
   },
   {
     icon: (
@@ -41,7 +38,6 @@ const features = [
     ),
     title: "CPIC Guidelines",
     desc: "All recommendations aligned with CPIC Level A evidence. Schema-validated JSON output for interoperability.",
-    color: "purple" as const,
   },
 ];
 
@@ -50,40 +46,24 @@ const FeatureCard = ({ feature, index }: { feature: typeof features[0]; index: n
   const inView = useInView(cardRef, { once: true, margin: "-50px" });
   useTiltEffect(cardRef as React.RefObject<HTMLElement>);
 
-  const isCyan = feature.color === "cyan";
-
   return (
     <motion.div
       ref={cardRef}
       initial={{ opacity: 0, y: 30 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="tilt-card glass rounded-2xl p-6 group hover:glow-border transition-all duration-300 cursor-default"
+      className="tilt-card card-surface p-6 group cursor-default"
       style={{ transformStyle: "preserve-3d" }}
     >
       <div className="flex items-start gap-4 mb-4">
-        <div
-          className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-            isCyan ? "text-neon-cyan" : "text-neon-purple"
-          }`}
-          style={{
-            background: isCyan
-              ? "linear-gradient(135deg, hsl(183 100% 50% / 0.12), hsl(175 80% 45% / 0.06))"
-              : "linear-gradient(135deg, hsl(265 70% 65% / 0.12), hsl(265 70% 65% / 0.04))",
-            border: `1px solid ${isCyan ? "hsl(183 100% 50% / 0.25)" : "hsl(265 70% 65% / 0.25)"}`,
-          }}
-        >
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-primary bg-primary/10 border border-primary/20">
           {feature.icon}
         </div>
         <div className="font-mono text-xs text-muted-foreground/40 pt-1">0{index + 1}</div>
       </div>
       <h3 className="text-base font-display font-bold text-foreground mb-2">{feature.title}</h3>
       <p className="text-sm text-muted-foreground leading-relaxed">{feature.desc}</p>
-      <div
-        className={`mt-5 h-px w-8 rounded-full transition-all duration-500 group-hover:w-full ${
-          isCyan ? "bg-neon-cyan/40" : "bg-neon-purple/40"
-        }`}
-      />
+      <div className="mt-5 h-0.5 w-8 rounded-full bg-primary/30 transition-all duration-500 group-hover:w-full" />
     </motion.div>
   );
 };
@@ -97,7 +77,6 @@ export const AboutSection = () => {
   return (
     <section id="about" className="py-28 relative overflow-hidden">
       <div className="absolute top-0 left-0 right-0 section-divider" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-neon-purple/3 blur-[120px] pointer-events-none" />
 
       <div className="container mx-auto px-4">
         <motion.div
@@ -107,19 +86,16 @@ export const AboutSection = () => {
           transition={{ duration: 0.7 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-xs mb-6 uppercase tracking-widest">
-            <div className="w-1.5 h-1.5 rounded-full bg-neon-purple" />
-            <span className="text-muted-foreground font-medium">Core Technology</span>
-          </div>
+          <div className="subtitle-accent mb-4">core technology :</div>
           <h2 className="text-4xl md:text-5xl font-display font-bold mb-4">
-            How <span className="gradient-text-purple">GeneRx</span> Works
+            How <span className="gradient-text">GeneRx</span> Works
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
             A multi-layered genomic analysis pipeline turning raw genetic data into actionable clinical insights.
           </p>
         </motion.div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-20">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 mb-20">
           {features.map((f, i) => (
             <FeatureCard key={f.title} feature={f} index={i} />
           ))}
@@ -131,7 +107,7 @@ export const AboutSection = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={pipelineInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.7 }}
-          className="glass-strong rounded-3xl p-8"
+          className="card-surface p-8"
         >
           <div className="flex items-center justify-between text-center overflow-x-auto gap-4">
             {[
@@ -149,14 +125,14 @@ export const AboutSection = () => {
                   className="flex flex-col items-center"
                 >
                   <div className="text-xl mb-2">{s.icon}</div>
-                  <div className="w-10 h-10 rounded-full glass glow-border flex items-center justify-center text-xs font-display font-bold text-neon-cyan mb-2">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center text-xs font-display font-bold text-primary mb-2">
                     {s.step}
                   </div>
                   <div className="text-xs text-muted-foreground whitespace-nowrap">{s.label}</div>
                 </motion.div>
                 {i < 4 && (
                   <div className="flex items-center">
-                    <div className="w-8 h-px bg-gradient-to-r from-neon-cyan/50 to-neon-purple/50" />
+                    <div className="w-8 h-px bg-gradient-to-r from-primary/40 to-warm-teal/40" />
                     <svg className="w-3 h-3 text-muted-foreground/40" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M9 18l6-6-6-6" />
                     </svg>

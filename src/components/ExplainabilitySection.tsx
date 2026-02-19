@@ -42,22 +42,22 @@ const timeline = [
 
 const colorStyles = {
   red: {
-    border: "border-neon-red/20 hover:border-neon-red/50",
-    text: "text-neon-red",
-    bg: "bg-neon-red/10",
-    gradient: "hsl(0 90% 60%)",
+    border: "border-warm-red/20 hover:border-warm-red/40",
+    text: "text-warm-red",
+    bg: "bg-warm-red/10",
+    gradient: "hsl(0 70% 55%)",
   },
   yellow: {
-    border: "border-neon-yellow/20 hover:border-neon-yellow/50",
-    text: "text-neon-yellow",
-    bg: "bg-neon-yellow/10",
-    gradient: "hsl(45 100% 60%)",
+    border: "border-warm-yellow/20 hover:border-warm-yellow/40",
+    text: "text-warm-yellow",
+    bg: "bg-warm-yellow/10",
+    gradient: "hsl(45 90% 55%)",
   },
   green: {
-    border: "border-neon-green/20 hover:border-neon-green/50",
-    text: "text-neon-green",
-    bg: "bg-neon-green/10",
-    gradient: "hsl(145 80% 50%)",
+    border: "border-warm-green/20 hover:border-warm-green/40",
+    text: "text-warm-green",
+    bg: "bg-warm-green/10",
+    gradient: "hsl(145 50% 40%)",
   },
 };
 
@@ -73,7 +73,7 @@ const VariantCard = ({ variant, index }: { variant: typeof variants[0]; index: n
       initial={{ opacity: 0, y: 30 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.5, delay: index * 0.12 }}
-      className={`tilt-card glass rounded-2xl p-6 border ${cfg.border} transition-all duration-300 group`}
+      className={`tilt-card card-surface p-6 border ${cfg.border} transition-all duration-300 group`}
     >
       <div className="flex items-start justify-between mb-4">
         <div>
@@ -91,7 +91,7 @@ const VariantCard = ({ variant, index }: { variant: typeof variants[0]; index: n
         <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Affected Drugs</div>
         <div className="flex flex-wrap gap-1.5">
           {variant.drugs.map((drug) => (
-            <span key={drug} className="text-xs glass rounded-full px-2.5 py-1 text-foreground">
+            <span key={drug} className="text-xs bg-muted/60 rounded-full px-2.5 py-1 text-foreground border border-border">
               {drug}
             </span>
           ))}
@@ -124,12 +124,9 @@ export const ExplainabilitySection = () => {
           transition={{ duration: 0.7 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-xs mb-6 uppercase tracking-widest">
-            <div className="w-1.5 h-1.5 rounded-full bg-neon-purple" />
-            <span className="text-muted-foreground font-medium">Explainability</span>
-          </div>
+          <div className="subtitle-accent mb-4">explainability :</div>
           <h2 className="text-4xl md:text-5xl font-display font-bold mb-4">
-            Variant <span className="neon-text-purple">Insights</span>
+            Variant <span className="gradient-text">Insights</span>
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
             Every prediction is backed by mechanistic explanation and clinical evidence.
@@ -137,7 +134,7 @@ export const ExplainabilitySection = () => {
         </motion.div>
 
         {/* Variant cards */}
-        <div className="grid md:grid-cols-3 gap-4 mb-24">
+        <div className="grid md:grid-cols-3 gap-5 mb-24">
           {variants.map((v, i) => (
             <VariantCard key={v.gene} variant={v} index={i} />
           ))}
@@ -155,7 +152,7 @@ export const ExplainabilitySection = () => {
             Analysis <span className="gradient-text">Pipeline</span>
           </h3>
           <div className="relative">
-            <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-neon-cyan/40 via-neon-purple/40 to-transparent" />
+            <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-primary/30 via-warm-teal/30 to-transparent" />
 
             <div className="space-y-5">
               {timeline.map((item, i) => (
@@ -166,12 +163,12 @@ export const ExplainabilitySection = () => {
                   transition={{ duration: 0.5, delay: i * 0.1 }}
                   className="flex gap-5 items-start"
                 >
-                  <div className="relative flex-shrink-0 w-12 h-12 glass glow-border rounded-full flex items-center justify-center text-lg z-10">
+                  <div className="relative flex-shrink-0 w-12 h-12 card-surface rounded-full flex items-center justify-center text-lg z-10 border-2 border-primary/20">
                     {item.icon}
                   </div>
-                  <div className="glass rounded-xl p-5 flex-1 hover:glow-border transition-all duration-300">
+                  <div className="card-surface p-5 flex-1">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-[10px] font-bold text-neon-cyan uppercase tracking-widest font-mono">Step {item.step}</span>
+                      <span className="text-[10px] font-bold text-primary uppercase tracking-widest font-mono">Step {item.step}</span>
                     </div>
                     <h4 className="font-display font-bold text-foreground mb-1">{item.title}</h4>
                     <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>

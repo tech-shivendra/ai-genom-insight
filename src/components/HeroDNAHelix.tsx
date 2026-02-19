@@ -3,8 +3,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 const HELIX_PAIRS = 24;
 const BASE_COLORS = {
-  cyan: "183, 100%, 50%",
-  purple: "265, 70%, 65%",
+  coral: "22, 90%, 55%",
+  teal: "183, 60%, 40%",
 };
 
 export const HeroDNAHelix = () => {
@@ -14,7 +14,6 @@ export const HeroDNAHelix = () => {
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // Pure CSS animation for max performance
   const rotationDuration = isMobile ? "18s" : "12s";
 
   return (
@@ -30,7 +29,7 @@ export const HeroDNAHelix = () => {
         style={{
           width: isMobile ? "200px" : "320px",
           height: isMobile ? "500px" : "700px",
-          background: `radial-gradient(ellipse, hsl(${BASE_COLORS.cyan} / 0.08), hsl(${BASE_COLORS.purple} / 0.04), transparent 70%)`,
+          background: `radial-gradient(ellipse, hsl(${BASE_COLORS.coral} / 0.06), hsl(${BASE_COLORS.teal} / 0.04), transparent 70%)`,
         }}
       />
 
@@ -42,7 +41,7 @@ export const HeroDNAHelix = () => {
           width: isMobile ? "120px" : "180px",
           height: isMobile ? "80vh" : "90vh",
           perspective: "600px",
-          opacity: prefersReducedMotion ? 0.1 : 0.15,
+          opacity: prefersReducedMotion ? 0.08 : 0.12,
           filter: "blur(0.5px)",
         }}
       >
@@ -77,9 +76,9 @@ export const HeroDNAHelix = () => {
                     width: isMobile ? "6px" : "8px",
                     height: isMobile ? "6px" : "8px",
                     left: `calc(50% + ${xLeft}px)`,
-                    background: `hsl(${BASE_COLORS.cyan} / ${0.4 + depthLeft * 0.5})`,
+                    background: `hsl(${BASE_COLORS.coral} / ${0.3 + depthLeft * 0.4})`,
                     boxShadow: depthLeft > 0
-                      ? `0 0 ${6 + depthLeft * 8}px hsl(${BASE_COLORS.cyan} / ${0.2 + depthLeft * 0.3})`
+                      ? `0 0 ${6 + depthLeft * 8}px hsl(${BASE_COLORS.coral} / ${0.15 + depthLeft * 0.2})`
                       : "none",
                     transform: `scale(${0.6 + Math.abs(depthLeft) * 0.4})`,
                   }}
@@ -91,9 +90,9 @@ export const HeroDNAHelix = () => {
                     width: isMobile ? "6px" : "8px",
                     height: isMobile ? "6px" : "8px",
                     left: `calc(50% + ${xRight}px)`,
-                    background: `hsl(${BASE_COLORS.purple} / ${0.4 + depthRight * 0.5})`,
+                    background: `hsl(${BASE_COLORS.teal} / ${0.3 + depthRight * 0.4})`,
                     boxShadow: depthRight > 0
-                      ? `0 0 ${6 + depthRight * 8}px hsl(${BASE_COLORS.purple} / ${0.2 + depthRight * 0.3})`
+                      ? `0 0 ${6 + depthRight * 8}px hsl(${BASE_COLORS.teal} / ${0.15 + depthRight * 0.2})`
                       : "none",
                     transform: `scale(${0.6 + Math.abs(depthRight) * 0.4})`,
                   }}
@@ -104,7 +103,7 @@ export const HeroDNAHelix = () => {
                   style={{
                     left: `calc(50% + ${Math.min(xLeft, xRight)}px)`,
                     width: `${Math.abs(xLeft - xRight)}px`,
-                    background: `linear-gradient(90deg, hsl(${BASE_COLORS.cyan} / ${0.15 + Math.abs(depthLeft) * 0.15}), hsl(${BASE_COLORS.purple} / ${0.15 + Math.abs(depthRight) * 0.15}))`,
+                    background: `linear-gradient(90deg, hsl(${BASE_COLORS.coral} / ${0.1 + Math.abs(depthLeft) * 0.12}), hsl(${BASE_COLORS.teal} / ${0.1 + Math.abs(depthRight) * 0.12}))`,
                   }}
                 />
               </div>

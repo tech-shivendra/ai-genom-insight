@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['DM Sans', 'system-ui', 'sans-serif'],
-        display: ['Space Grotesk', 'DM Sans', 'system-ui', 'sans-serif'],
+        sans: ['Poppins', 'system-ui', 'sans-serif'],
+        display: ['Playfair Display', 'Georgia', 'serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {
@@ -52,13 +52,24 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        warm: {
+          coral: "hsl(var(--warm-coral))",
+          "coral-light": "hsl(var(--warm-coral-light))",
+          sand: "hsl(var(--warm-sand))",
+          cream: "hsl(var(--warm-cream))",
+          teal: "hsl(var(--warm-teal))",
+          green: "hsl(var(--warm-green))",
+          yellow: "hsl(var(--warm-yellow))",
+          red: "hsl(var(--warm-red))",
+        },
+        // Keep neon aliases pointing to warm colors for backward compat
         neon: {
-          cyan: "hsl(var(--neon-cyan))",
-          teal: "hsl(var(--neon-teal))",
-          purple: "hsl(var(--neon-purple))",
-          green: "hsl(var(--neon-green))",
-          yellow: "hsl(var(--neon-yellow))",
-          red: "hsl(var(--neon-red))",
+          cyan: "hsl(var(--warm-teal))",
+          teal: "hsl(var(--warm-teal))",
+          purple: "hsl(var(--warm-coral))",
+          green: "hsl(var(--warm-green))",
+          yellow: "hsl(var(--warm-yellow))",
+          red: "hsl(var(--warm-red))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
@@ -79,13 +90,12 @@ export default {
         "2xl": "calc(var(--radius) + 8px)",
       },
       boxShadow: {
-        'glow-cyan': "0 0 20px hsl(183 100% 50% / 0.4), 0 0 60px hsl(183 100% 50% / 0.15)",
-        'glow-purple': "0 0 20px hsl(265 70% 65% / 0.4), 0 0 60px hsl(265 70% 65% / 0.15)",
-        'glow-green': "0 0 20px hsl(145 80% 50% / 0.5), 0 0 40px hsl(145 80% 50% / 0.2)",
-        'glow-red': "0 0 20px hsl(0 90% 60% / 0.5), 0 0 40px hsl(0 90% 60% / 0.2)",
-        'glow-yellow': "0 0 20px hsl(45 100% 60% / 0.5), 0 0 40px hsl(45 100% 60% / 0.2)",
-        'glass': "0 8px 32px hsl(222 47% 3% / 0.6)",
-        'card-dark': "0 25px 50px -12px hsl(222 47% 3% / 0.8)",
+        'soft': "0 10px 30px rgba(0, 0, 0, 0.05)",
+        'card': "0 20px 50px rgba(0, 0, 0, 0.08)",
+        'hover': "0 30px 70px rgba(0, 0, 0, 0.12)",
+        'warm': "0 10px 25px rgba(212, 100, 50, 0.15)",
+        'glass': "0 8px 32px rgba(0, 0, 0, 0.06)",
+        'card-dark': "0 25px 50px rgba(0, 0, 0, 0.08)",
       },
       keyframes: {
         "accordion-down": {
@@ -108,10 +118,6 @@ export default {
           "0%": { opacity: "0", transform: "translateY(40px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
-        "glow-pulse": {
-          "0%, 100%": { boxShadow: "0 0 15px hsl(183 100% 50% / 0.3)" },
-          "50%": { boxShadow: "0 0 40px hsl(183 100% 50% / 0.7), 0 0 80px hsl(183 100% 50% / 0.3)" },
-        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -119,7 +125,6 @@ export default {
         "fade-in": "fade-in 0.6s ease-out forwards",
         "fade-in-scale": "fade-in-scale 0.5s ease-out forwards",
         "slide-up": "slide-up 0.7s ease-out forwards",
-        "glow-pulse": "glow-pulse 2s ease-in-out infinite",
       },
     },
   },

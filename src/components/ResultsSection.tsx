@@ -15,29 +15,29 @@ const riskConfig: Record<RiskLabel, {
     label: "Safe",
     cls: "badge-safe",
     icon: "✓",
-    bar: "hsl(145 80% 50%)",
-    border: "border-neon-green/20 hover:border-neon-green/40",
+    bar: "hsl(145 50% 40%)",
+    border: "border-warm-green/20 hover:border-warm-green/40",
   },
   "Adjust Dosage": {
     label: "Adjust Dosage",
     cls: "badge-adjust",
     icon: "⚠",
-    bar: "hsl(45 100% 60%)",
-    border: "border-neon-yellow/20 hover:border-neon-yellow/40",
+    bar: "hsl(45 90% 50%)",
+    border: "border-warm-yellow/20 hover:border-warm-yellow/40",
   },
   Toxic: {
     label: "Toxic",
     cls: "badge-toxic",
     icon: "✕",
-    bar: "hsl(0 90% 60%)",
-    border: "border-neon-red/20 hover:border-neon-red/40",
+    bar: "hsl(0 70% 55%)",
+    border: "border-warm-red/20 hover:border-warm-red/40",
   },
   Ineffective: {
     label: "Ineffective",
     cls: "badge-toxic",
     icon: "✕",
-    bar: "hsl(0 90% 60%)",
-    border: "border-neon-red/20 hover:border-neon-red/40",
+    bar: "hsl(0 70% 55%)",
+    border: "border-warm-red/20 hover:border-warm-red/40",
   },
   Unknown: {
     label: "Unknown",
@@ -51,11 +51,11 @@ const riskConfig: Record<RiskLabel, {
 // ─── Severity badge ───────────────────────────────────────────
 
 const severityColors: Record<string, string> = {
-  none: "text-neon-green",
-  low: "text-neon-cyan",
-  moderate: "text-neon-yellow",
-  high: "text-neon-red",
-  critical: "text-neon-red",
+  none: "text-warm-green",
+  low: "text-warm-teal",
+  moderate: "text-warm-yellow",
+  high: "text-warm-red",
+  critical: "text-warm-red",
 };
 
 // ─── Confidence bar ───────────────────────────────────────────
@@ -64,10 +64,10 @@ const ConfidenceBar = ({ score }: { score: number }) => {
   const pct = Math.round(score * 100);
   const color =
     score >= 0.9
-      ? "hsl(145 80% 50%)"
+      ? "hsl(145 50% 40%)"
       : score >= 0.7
-      ? "hsl(45 100% 60%)"
-      : "hsl(220 15% 55%)";
+      ? "hsl(45 90% 50%)"
+      : "hsl(0 0% 55%)";
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs text-muted-foreground">
@@ -91,7 +91,7 @@ function downloadReport(report: PharmaGuardReport) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `pharmaguard-${report.patient_id}-${report.drug.toLowerCase()}.json`;
+  a.download = `generx-${report.patient_id}-${report.drug.toLowerCase()}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -120,7 +120,7 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
   return (
     <div
       ref={cardRef}
-      className={`tilt-card glass rounded-2xl overflow-hidden transition-all duration-300 border ${cfg.border}`}
+      className={`tilt-card card-surface overflow-hidden transition-all duration-300 border ${cfg.border}`}
     >
       {/* Severity top-bar */}
       <div
@@ -158,7 +158,7 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
               >
                 {report.risk_assessment.severity} severity
               </span>
-              <span className="glass px-2 py-0.5 rounded-full text-neon-cyan text-xs">
+              <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-xs border border-primary/20">
                 {qm.variants_detected} variants
               </span>
             </div>
@@ -178,7 +178,7 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
                   target="_blank"
                   rel="noopener noreferrer"
                   title="View on PharmGKB"
-                  className="text-xs font-mono glass rounded-full px-2.5 py-1 text-neon-cyan border border-neon-cyan/20 hover:border-neon-cyan/50 hover:bg-neon-cyan/10 transition-colors cursor-pointer"
+                  className="text-xs font-mono bg-primary/5 rounded-full px-2.5 py-1 text-primary border border-primary/20 hover:border-primary/40 hover:bg-primary/10 transition-colors cursor-pointer"
                 >
                   {v.rsid} ({v.star_allele})
                 </a>
@@ -189,11 +189,11 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
 
         {/* CPIC badge */}
         <div className="mb-4 flex items-center gap-2">
-          <span className="text-xs glass rounded-full px-2.5 py-1 text-neon-purple border border-neon-purple/20 font-medium">
+          <span className="text-xs bg-warm-coral/10 rounded-full px-2.5 py-1 text-primary border border-primary/20 font-medium">
             CPIC {qm.cpic_guideline_version}
           </span>
           {qm.supported_gene_detected && (
-            <span className="text-xs glass rounded-full px-2.5 py-1 text-neon-green border border-neon-green/20">
+            <span className="text-xs bg-warm-green/10 rounded-full px-2.5 py-1 text-warm-green border border-warm-green/20">
               ✓ Gene in DB
             </span>
           )}
@@ -220,16 +220,16 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
           }`}
         >
           <div className="space-y-3 pt-3">
-            <div className="glass rounded-xl p-4">
-              <div className="text-xs font-semibold text-neon-cyan mb-2 uppercase tracking-wider">
+            <div className="card-surface p-4">
+              <div className="text-xs font-semibold text-primary mb-2 uppercase tracking-wider">
                 Clinical Recommendation
               </div>
               <p className="text-sm text-foreground leading-relaxed">
                 {cr.action}
               </p>
             </div>
-            <div className="glass rounded-xl p-4 border border-neon-yellow/20">
-              <div className="text-xs font-semibold text-neon-yellow mb-2 uppercase tracking-wider flex items-center gap-1.5">
+            <div className="card-surface p-4 border border-warm-yellow/20">
+              <div className="text-xs font-semibold text-warm-yellow mb-2 uppercase tracking-wider flex items-center gap-1.5">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
@@ -239,20 +239,20 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
                 {cr.dosing_recommendation}
               </p>
             </div>
-            <div className="glass rounded-xl p-4">
-              <div className="text-xs font-semibold text-neon-purple mb-2 uppercase tracking-wider">
+            <div className="card-surface p-4">
+              <div className="text-xs font-semibold text-primary mb-2 uppercase tracking-wider">
                 AI Summary
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">{llm.summary}</p>
             </div>
-            <div className="glass rounded-xl p-4">
-              <div className="text-xs font-semibold text-neon-cyan mb-2 uppercase tracking-wider">
+            <div className="card-surface p-4">
+              <div className="text-xs font-semibold text-warm-teal mb-2 uppercase tracking-wider">
                 Biological Mechanism
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">{llm.mechanism}</p>
             </div>
-            <div className="glass rounded-xl p-4">
-              <div className="text-xs font-semibold text-neon-green mb-2 uppercase tracking-wider">
+            <div className="card-surface p-4">
+              <div className="text-xs font-semibold text-warm-green mb-2 uppercase tracking-wider">
                 Clinical Impact
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">{llm.clinical_impact}</p>
@@ -264,7 +264,7 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
         <div className="flex gap-2 mt-4 pt-3 border-t border-border/30">
           <button
             onClick={handleCopy}
-            className="flex-1 flex items-center justify-center gap-1.5 text-xs glass rounded-lg px-3 py-2 hover:text-neon-cyan transition-colors"
+            className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-muted/50 rounded-lg px-3 py-2 hover:text-primary transition-colors border border-border"
             aria-label={`Copy ${report.drug} JSON`}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -276,9 +276,9 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
             onClick={() => downloadReport(report)}
             className="flex-1 flex items-center justify-center gap-1.5 text-xs rounded-lg px-3 py-2 font-medium transition-all"
             style={{
-              background: "hsl(183 100% 35% / 0.2)",
-              border: "1px solid hsl(183 100% 50% / 0.4)",
-              color: "hsl(183 100% 60%)",
+              background: "hsl(22 90% 55% / 0.1)",
+              border: "1px solid hsl(22 90% 55% / 0.3)",
+              color: "hsl(22 90% 50%)",
             }}
             aria-label={`Download ${report.drug} JSON`}
           >
@@ -320,30 +320,30 @@ const VariantBrowser = ({ variants }: { variants: DetectedVariant[] }) => {
     const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "pharmaguard-variants.csv"; a.click();
+    a.href = url; a.download = "generx-variants.csv"; a.click();
     URL.revokeObjectURL(url);
   };
 
   const SortIcon = ({ col }: { col: keyof DetectedVariant }) => (
-    <svg className={`w-3 h-3 inline ml-1 ${sortKey === col ? "text-neon-cyan" : "text-muted-foreground/50"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg className={`w-3 h-3 inline ml-1 ${sortKey === col ? "text-primary" : "text-muted-foreground/50"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
         d={sortKey === col && !sortAsc ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
     </svg>
   );
 
   return (
-    <div className="glass rounded-2xl overflow-hidden">
+    <div className="card-surface overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-neon-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
           </svg>
           <span className="text-sm font-semibold text-foreground">Variant Browser</span>
-          <span className="glass rounded-full px-2 py-0.5 text-xs text-neon-cyan">{variants.length} variants</span>
+          <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs border border-primary/20">{variants.length} variants</span>
         </div>
         <button
           onClick={downloadCSV}
-          className="flex items-center gap-1.5 text-xs glass rounded-lg px-3 py-1.5 hover:text-neon-cyan transition-colors"
+          className="flex items-center gap-1.5 text-xs bg-muted/50 rounded-lg px-3 py-1.5 hover:text-primary transition-colors border border-border"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -370,9 +370,9 @@ const VariantBrowser = ({ variants }: { variants: DetectedVariant[] }) => {
           <tbody>
             {sorted.map((v, i) => (
               <tr key={`${v.rsid}-${i}`} className="border-b border-border/40 hover:bg-muted/20 transition-colors">
-                <td className="px-4 py-2.5 font-mono text-neon-cyan">{v.rsid}</td>
+                <td className="px-4 py-2.5 font-mono text-primary">{v.rsid}</td>
                 <td className="px-4 py-2.5 font-bold text-foreground">{v.gene}</td>
-                <td className="px-4 py-2.5 font-mono text-neon-purple">{v.star_allele}</td>
+                <td className="px-4 py-2.5 font-mono text-warm-coral">{v.star_allele}</td>
                 <td className="px-4 py-2.5 text-muted-foreground">{v.chromosome || "—"}</td>
                 <td className="px-4 py-2.5 font-mono text-muted-foreground">{v.position?.toLocaleString() || "—"}</td>
                 <td className="px-4 py-2.5 font-mono text-muted-foreground">{v.ref || "—"}</td>
@@ -382,7 +382,7 @@ const VariantBrowser = ({ variants }: { variants: DetectedVariant[] }) => {
                     href={`https://www.pharmgkb.org/variant/${v.rsid}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-neon-cyan hover:underline flex items-center gap-1"
+                    className="text-primary hover:underline flex items-center gap-1"
                   >
                     View
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -427,13 +427,13 @@ const JsonViewer = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `pharmaguard-${patientId}-all.json`;
+    a.download = `generx-${patientId}-all.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="glass rounded-2xl overflow-hidden">
+    <div className="card-surface overflow-hidden">
       {/* Drug tabs */}
       {reports.length > 1 && (
         <div className="flex overflow-x-auto border-b border-border bg-muted/20">
@@ -443,7 +443,7 @@ const JsonViewer = ({
               onClick={() => setActiveIdx(i)}
               className={`px-4 py-2.5 text-xs font-medium whitespace-nowrap transition-colors ${
                 i === activeIdx
-                  ? "text-neon-cyan border-b-2 border-neon-cyan bg-neon-cyan/5"
+                  ? "text-primary border-b-2 border-primary bg-primary/5"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -456,20 +456,20 @@ const JsonViewer = ({
       {/* Toolbar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-neon-red/60" />
-          <div className="w-3 h-3 rounded-full bg-neon-yellow/60" />
-          <div className="w-3 h-3 rounded-full bg-neon-green/60" />
+          <div className="w-3 h-3 rounded-full bg-warm-red/60" />
+          <div className="w-3 h-3 rounded-full bg-warm-yellow/60" />
+          <div className="w-3 h-3 rounded-full bg-warm-green/60" />
           <span className="ml-2 text-xs text-muted-foreground font-mono">
             {report.drug.toLowerCase()}_report.json
           </span>
-          <span className="text-xs glass rounded-full px-2 py-0.5 text-neon-green border border-neon-green/30 ml-2">
+          <span className="text-xs bg-warm-green/10 rounded-full px-2 py-0.5 text-warm-green border border-warm-green/20 ml-2">
             ✓ Schema Valid
           </span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => handleCopy(activeIdx)}
-            className="flex items-center gap-1.5 text-xs glass rounded-lg px-3 py-1.5 hover:text-neon-cyan transition-colors"
+            className="flex items-center gap-1.5 text-xs bg-muted/50 rounded-lg px-3 py-1.5 hover:text-primary transition-colors border border-border"
             aria-label="Copy JSON"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -481,9 +481,9 @@ const JsonViewer = ({
             onClick={handleDownloadAll}
             className="flex items-center gap-1.5 text-xs rounded-lg px-3 py-1.5 font-medium transition-all"
             style={{
-              background: "hsl(183 100% 35% / 0.2)",
-              border: "1px solid hsl(183 100% 50% / 0.4)",
-              color: "hsl(183 100% 60%)",
+              background: "hsl(22 90% 55% / 0.1)",
+              border: "1px solid hsl(22 90% 55% / 0.3)",
+              color: "hsl(22 90% 50%)",
             }}
             aria-label="Download all JSON"
           >
@@ -540,7 +540,7 @@ const SafetyDisclaimer = () => (
             for professional medical advice, clinical diagnosis, or clinical decision-making.
             Pharmacogenomic results must be interpreted by a qualified healthcare professional
             in the context of a patient's full clinical picture. Risk assessments are aligned with{" "}
-            <span className="text-neon-cyan font-medium">CPIC Guidelines v2024.1</span> but do not
+            <span className="text-primary font-medium">CPIC Guidelines v2024.1</span> but do not
             constitute clinical guidance. Always consult a licensed clinician before making
             prescribing decisions.
           </p>
@@ -584,14 +584,14 @@ export const ResultsSection = ({ results, onNewAnalysis }: ResultsSectionProps) 
         {/* Header */}
         <div className="text-center mb-12 reveal">
           <div className="flex items-center justify-center gap-3 mb-6 flex-wrap">
-            <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-sm">
-              <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
-              <span className="text-neon-green font-medium">Analysis Complete</span>
+            <div className="inline-flex items-center gap-2 bg-warm-green/10 border border-warm-green/30 rounded-full px-4 py-2 text-sm">
+              <div className="w-2 h-2 rounded-full bg-warm-green animate-pulse" />
+              <span className="text-warm-green font-medium">Analysis Complete</span>
             </div>
             {onNewAnalysis && (
               <button
                 onClick={onNewAnalysis}
-                className="inline-flex items-center gap-1.5 glass rounded-full px-4 py-2 text-sm text-muted-foreground hover:text-neon-cyan hover:border-neon-cyan/40 border border-border/50 transition-all duration-200"
+                className="inline-flex items-center gap-1.5 bg-white rounded-full px-4 py-2 text-sm text-muted-foreground hover:text-primary hover:border-primary/40 border border-border transition-all duration-200"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -600,12 +600,12 @@ export const ResultsSection = ({ results, onNewAnalysis }: ResultsSectionProps) 
               </button>
             )}
           </div>
-          <h2 className="text-4xl md:text-5xl font-display font-black mb-4">
+          <h2 className="text-4xl md:text-5xl font-display font-bold mb-4">
             Pharmacogenomic <span className="gradient-text">Risk Report</span>
           </h2>
           <p className="text-muted-foreground">
             Patient ID:{" "}
-            <span className="font-mono text-neon-cyan font-medium">{patientId}</span>{" "}
+            <span className="font-mono text-primary font-medium">{patientId}</span>{" "}
             · {variantsFound} variant{variantsFound !== 1 ? "s" : ""} parsed · {reports.length} drug
             {reports.length !== 1 ? "s" : ""} analyzed
           </p>
@@ -651,13 +651,13 @@ export const ResultsSection = ({ results, onNewAnalysis }: ResultsSectionProps) 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <p className="text-sm text-muted-foreground">
-              <span className="text-neon-yellow font-medium">No GENE/STAR tags detected in VCF.</span>{" "}
+              <span className="text-warm-yellow font-medium">No GENE/STAR tags detected in VCF.</span>{" "}
               Engine defaulted to wildtype (*1/*1) assumptions. For accurate results ensure your VCF
               INFO column contains{" "}
-              <code className="text-neon-cyan">GENE=</code> and{" "}
-              <code className="text-neon-cyan">STAR=</code> annotations.
+              <code className="text-primary">GENE=</code> and{" "}
+              <code className="text-primary">STAR=</code> annotations.
               Download the{" "}
-              <a href="/sample.vcf" download className="text-neon-cyan hover:underline">sample VCF</a>{" "}
+              <a href="/sample.vcf" download className="text-primary hover:underline">sample VCF</a>{" "}
               to see the expected format.
             </p>
           </div>
@@ -676,7 +676,7 @@ export const ResultsSection = ({ results, onNewAnalysis }: ResultsSectionProps) 
         {variants && variants.length > 0 && (
           <div className="max-w-5xl mx-auto mb-12 reveal" style={{ transitionDelay: "0.2s" }}>
             <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <span className="text-neon-cyan">🔬</span>
+              <span className="text-primary">🔬</span>
               Parsed Variant Browser
             </h3>
             <VariantBrowser variants={variants} />
@@ -686,7 +686,7 @@ export const ResultsSection = ({ results, onNewAnalysis }: ResultsSectionProps) 
         {/* Aggregated JSON viewer */}
         <div className="max-w-3xl mx-auto reveal" style={{ transitionDelay: "0.3s" }}>
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <span className="text-neon-cyan">{"{ }"}</span>
+            <span className="text-primary">{"{ }"}</span>
             Raw JSON Output — Schema v2024.1
           </h3>
           <JsonViewer reports={reports} patientId={patientId} />
