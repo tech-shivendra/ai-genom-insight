@@ -1,5 +1,6 @@
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
+import { DNAHelix } from "./DNAHelix";
 
 export const CTASection = () => {
   const ref = useRef<HTMLDivElement>(null);
@@ -13,6 +14,7 @@ export const CTASection = () => {
       <div className="absolute inset-0 z-0">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] rounded-full bg-neon-cyan/3 blur-[150px]" />
         <div className="absolute top-1/2 left-1/3 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-neon-purple/3 blur-[120px]" />
+        <DNAHelix />
       </div>
 
       <div ref={ref} className="container mx-auto px-4 relative z-10">
