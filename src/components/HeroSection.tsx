@@ -259,7 +259,7 @@ export const HeroSection = () => {
 
               <motion.a
                 href="/sample.vcf"
-                download="sample_pharmaguard.vcf"
+                download="sample_generx.vcf"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.98 }}
                 className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-sm glass border border-neon-green/30 text-neon-green hover:bg-neon-green/5 transition-all duration-300"

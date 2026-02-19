@@ -1,11 +1,10 @@
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
+import generxLogo from "@/assets/generx-logo.png";
 
 const team = [
-  { name: "Dr. Aisha Rahman", role: "Chief Genomics Officer", initials: "AR" },
-  { name: "Marcus Chen", role: "AI/ML Lead Engineer", initials: "MC" },
-  { name: "Priya Kapoor", role: "Clinical Pharmacist", initials: "PK" },
-  { name: "Soren Nielsen", role: "Full-Stack Engineer", initials: "SN" },
+  { name: "Mohd. Fahad", role: "Developer", initials: "MF" },
+  { name: "Shivendra Pratap Singh", role: "Developer", initials: "SP" },
 ];
 
 export const FooterSection = () => {
@@ -27,22 +26,15 @@ export const FooterSection = () => {
           {/* Brand */}
           <div className="lg:col-span-1">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
-                style={{ background: "linear-gradient(135deg, hsl(183 100% 40%), hsl(265 70% 55%))" }}>
-                🧬
-              </div>
+              <img src={generxLogo} alt="GeneRx logo" className="w-10 h-10 rounded-xl" />
               <div>
-                <div className="font-display font-bold text-foreground">PharmaGuard</div>
+                <div className="font-display font-bold text-foreground">GeneRx</div>
                 <div className="text-xs text-muted-foreground">Pharmacogenomic Analysis</div>
               </div>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed mb-4">
               Precision medicine powered by genomics. Turning genetic data into life-saving clinical decisions.
             </p>
-            <div className="flex items-center gap-2 text-xs glass rounded-full px-3 py-2 w-fit">
-              <span className="text-neon-cyan">🏆</span>
-              <span className="text-muted-foreground">HealthTech Hackathon 2025</span>
-            </div>
           </div>
 
           {/* Links */}
@@ -98,7 +90,7 @@ export const FooterSection = () => {
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-xs text-muted-foreground">
-            © 2026 PharmaGuard. Built for{" "}
+            © 2026 GeneRx. Built for{" "}
             <span className="text-neon-cyan font-medium">precision medicine research</span>.
             Not for clinical use without validation.
           </div>
@@ -116,9 +108,6 @@ export const FooterSection = () => {
               </svg>
             </a>
 
-            <div className="glass rounded-lg px-4 py-2 flex items-center gap-2 text-xs font-bold glow-border text-neon-cyan">
-              🏆 Hackathon 2025
-            </div>
           </div>
         </div>
       </div>
