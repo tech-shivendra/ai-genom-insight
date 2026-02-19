@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import heroBg from "@/assets/hero-bg.jpg";
+import { DNAHelix } from "./DNAHelix";
 
 const AnimatedCounter = ({ target, suffix = "" }: { target: string; suffix?: string }) => {
   const [count, setCount] = useState(0);
@@ -127,6 +128,9 @@ export const HeroSection = () => {
       {/* Ambient orbs */}
       <div className="absolute top-20 left-1/4 w-72 h-72 rounded-full bg-neon-cyan/5 blur-[100px] pointer-events-none z-0" />
       <div className="absolute bottom-20 right-1/4 w-96 h-96 rounded-full bg-neon-purple/5 blur-[120px] pointer-events-none z-0" />
+
+      {/* Animated DNA helix */}
+      <DNAHelix />
 
       <motion.div
         className="container relative z-10 mx-auto px-4 pt-24 pb-16"
