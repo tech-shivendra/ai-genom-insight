@@ -40,7 +40,7 @@ export const FooterSection = () => {
             <ul className="space-y-2.5">
               {["Genomic Analysis", "Drug Database", "CPIC Guidelines", "API Access", "Clinical Reports"].map((l) => (
                 <li key={l}>
-                  <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors duration-200">
+                  <a href="#" className="text-sm text-muted-foreground hover:text-primary footer-link block">
                     {l}
                   </a>
                 </li>
@@ -53,7 +53,7 @@ export const FooterSection = () => {
             <ul className="space-y-2.5">
               {["Documentation", "Research Papers", "CPIC Database", "PharmGKB", "GitHub Repository"].map((l) => (
                 <li key={l}>
-                  <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors duration-200">
+                  <a href="#" className="text-sm text-muted-foreground hover:text-primary footer-link block">
                     {l}
                   </a>
                 </li>
@@ -96,7 +96,7 @@ export const FooterSection = () => {
               href="https://github.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-white rounded-lg p-2 border border-border hover:border-primary/40 hover:shadow-warm transition-all duration-200 group"
+              className="bg-card rounded-lg p-2 border border-border hover:border-primary/40 hover:shadow-warm social-icon group"
               aria-label="GitHub"
             >
               <svg className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" fill="currentColor" viewBox="0 0 24 24">

@@ -65,7 +65,7 @@ export const CTASection = () => {
               download="sample_generx.vcf"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.97 }}
-              className="inline-flex items-center gap-2 px-8 py-5 rounded-2xl font-semibold bg-white border border-border hover:border-primary/40 hover:shadow-warm transition-all duration-300"
+              className="inline-flex items-center gap-2 px-8 py-5 rounded-2xl font-semibold bg-card text-foreground border border-border hover:border-primary/40 hover:shadow-warm transition-all duration-300"
             >
               <svg className="w-4 h-4 text-warm-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
