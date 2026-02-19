@@ -208,13 +208,14 @@ export const pharmacogenomicDB: PharmaDB = {
       },
     },
     "*1/*2": {
-      phenotype: "Intermediate Metabolizer (IM)",
+      phenotype: "Normal Metabolizer (NM)", // *2 has normal function (score 1.0)
       drugs: {
         CODEINE: {
-          risk: "Adjust Dosage",
-          severity: "moderate",
-          recommendation: "Use reduced codeine dose or select a direct-acting opioid. Close monitoring recommended.",
-          dosing: "Reduce dose by 25%. Reassess after 48 h. Consider direct-acting opioid (morphine, oxycodone).",
+          risk: "Safe",
+          severity: "none",
+          recommendation:
+            "Standard codeine dosing. CYP2D6 *2 retains normal enzymatic activity (activity score 1.0). No dose adjustment required per CPIC.",
+          dosing: "Standard dose: 15–60 mg every 4–6 h as needed (adult). No adjustment required.",
         },
       },
     },
@@ -596,10 +597,32 @@ export const DRUG_GENE_MAP: Record<string, string> = {
 // Set of all supported drug names (uppercase)
 export const SUPPORTED_DRUGS: Set<string> = new Set(Object.keys(DRUG_GENE_MAP));
 
-// ─── Activity Scoring per Gene (CPIC) ─────────────────────────
-/** Star allele → activity score for phenotype determination */
+// ─── Activity Scoring per Gene (CPIC 2024.1) ─────────────────
+/**
+ * Star allele → activity score for phenotype determination.
+ *
+ * WHY ALLELE-SPECIFIC SCORING IS REQUIRED:
+ * Not all non-*1 alleles are reduced function. For example:
+ *   - CYP2D6 *2 has NORMAL function (score 1.0), same as *1
+ *   - CYP2D6 *10 has REDUCED function (score 0.5)
+ *   - CYP2D6 *4 has NO function (score 0.0)
+ * Treating all non-*1 alleles as "reduced" would misclassify *1/*2 as IM
+ * when it is actually NM (score 2.0). This is clinically dangerous.
+ *
+ * Scores sourced from CPIC Gene-Specific Tables (cpicpgx.org).
+ */
 const ACTIVITY_SCORES: Record<string, Record<string, number>> = {
-  CYP2D6: { "*1": 1.0, "*2": 1.0, "*4": 0.0, "*5": 0.0, "*10": 0.5, "*41": 0.5, "*1xN": 3.0 },
+  CYP2D6: {
+    "*1": 1.0,    // Normal function (reference)
+    "*2": 1.0,    // Normal function — NOT reduced
+    "*4": 0.0,    // No function (splice defect)
+    "*5": 0.0,    // No function (gene deletion)
+    "*6": 0.0,    // No function (frameshift)
+    "*10": 0.5,   // Reduced function (unstable enzyme)
+    "*17": 0.5,   // Reduced function (substrate-dependent)
+    "*41": 0.5,   // Reduced function (splicing defect, partial)
+    "*1xN": 3.0,  // Gene duplication → ultrarapid
+  },
   CYP2C19: { "*1": 1.0, "*2": 0.0, "*3": 0.0, "*17": 1.5 },
   CYP2C9: { "*1": 1.0, "*2": 0.5, "*3": 0.25 },
   SLCO1B1: { "*1": 1.0, "*5": 0.5, "*15": 0.5 },
@@ -788,29 +811,39 @@ function determineDiplotype(relevantVariants: DetectedVariant[]): string | null 
 // ─── 2b. Activity-Score Phenotype Engine ──────────────────────
 
 /**
- * determinePhenotype – Uses CPIC activity scoring to derive phenotype.
- * Sums activity scores for each allele in relevant variants.
- * Falls back to gene-specific thresholds.
+ * determinePhenotype – CPIC activity-score phenotype engine.
+ *
+ * Computes total activity score from both alleles and maps to phenotype:
+ *   score >= 2.25  → Ultrarapid Metabolizer (UM)  (e.g. *1xN)
+ *   score >= 1.5   → Normal Metabolizer (NM)      (e.g. *1/*1 = 2.0, *1/*2 = 2.0)
+ *   score >= 0.5   → Intermediate Metabolizer (IM) (e.g. *1/*4 = 1.0, *10/*41 = 1.0)
+ *   score <  0.5   → Poor Metabolizer (PM)         (e.g. *4/*4 = 0.0)
+ *
+ * If only one allele is detected, the other is assumed to be *1 (wildtype).
+ * Unknown alleles default to score 0 (conservative/safe assumption).
  */
 function determinePhenotype(relevantVariants: DetectedVariant[], gene: string): string {
   const geneScores = ACTIVITY_SCORES[gene];
   if (!geneScores) return "Unknown";
 
-  // Sum activity scores: each variant contributes one allele; pair with *1 if single
-  let alleles: string[];
   if (relevantVariants.length === 0) return "Unknown";
-  else if (relevantVariants.length === 1) {
+
+  // Build allele pair: if single variant detected, pair with wildtype *1
+  let alleles: string[];
+  if (relevantVariants.length === 1) {
     alleles = ["*1", relevantVariants[0].star_allele || "*1"];
   } else {
     alleles = relevantVariants.slice(0, 2).map((v) => v.star_allele || "*1");
   }
 
+  // Sum activity scores — unknown alleles score 0 (conservative)
   const score = alleles.reduce((sum, a) => sum + (geneScores[a] ?? 0), 0);
 
-  if (score === 0) return "Poor Metabolizer (PM)";
-  if (score <= 1) return "Intermediate Metabolizer (IM)";
-  if (score <= 2) return "Normal Metabolizer (NM)";
-  return "Ultrarapid Metabolizer (UM)";
+  // CPIC-aligned thresholds
+  if (score >= 2.25) return "Ultrarapid Metabolizer (UM)";
+  if (score >= 1.5) return "Normal Metabolizer (NM)";
+  if (score >= 0.5) return "Intermediate Metabolizer (IM)";
+  return "Poor Metabolizer (PM)";
 }
 
 // ─── 3. Risk Classifier ───────────────────────────────────────
