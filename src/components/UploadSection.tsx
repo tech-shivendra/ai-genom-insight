@@ -423,15 +423,16 @@ export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionP
 12      21331549  rs4149056   T    C    .     PASS    GENE=SLCO1B1;STAR=*5;RS=rs4149056
 6       18128556  rs1800460   C    T    .     PASS    GENE=TPMT;STAR=*3A;RS=rs1800460
 1       97305364  rs3918290   C    T    .     PASS    GENE=DPYD;STAR=*2A;RS=rs3918290`}</pre>
-              <button
-                onClick={downloadSampleVCF}
+              <a
+                href="/sample.vcf"
+                download="sample_pharmaguard.vcf"
                 className="inline-flex items-center gap-2 text-xs font-medium text-neon-cyan hover:underline"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                Download sample VCF file
-              </button>
+                Download sample VCF (6 genes · all drugs)
+              </a>
             </div>
           </details>
 
@@ -518,32 +519,3 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function downloadSampleVCF() {
-  const sample = [
-    "##fileformat=VCFv4.2",
-    "##source=PharmaGuard-Sample",
-    "##reference=GRCh38",
-    "##contig=<ID=1,length=248956422>",
-    "##contig=<ID=6,length=170805979>",
-    "##contig=<ID=10,length=133797422>",
-    "##contig=<ID=12,length=133275309>",
-    "##INFO=<ID=GENE,Number=1,Type=String,Description=\"Gene symbol\">",
-    "##INFO=<ID=STAR,Number=1,Type=String,Description=\"Star allele\">",
-    "##INFO=<ID=RS,Number=1,Type=String,Description=\"dbSNP rsID\">",
-    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
-    "1\t97915614\trs1065852\tC\tT\t.\tPASS\tGENE=CYP2D6;STAR=*4;RS=rs1065852",
-    "10\t96741053\trs4244285\tG\tA\t.\tPASS\tGENE=CYP2C19;STAR=*2;RS=rs4244285",
-    "10\t96702047\trs1799853\tC\tT\t.\tPASS\tGENE=CYP2C9;STAR=*2;RS=rs1799853",
-    "12\t21331549\trs4149056\tT\tC\t.\tPASS\tGENE=SLCO1B1;STAR=*5;RS=rs4149056",
-    "6\t18128556\trs1800460\tC\tT\t.\tPASS\tGENE=TPMT;STAR=*3A;RS=rs1800460",
-    "1\t97305364\trs3918290\tC\tT\t.\tPASS\tGENE=DPYD;STAR=*2A;RS=rs3918290",
-  ].join("\n");
-
-  const blob = new Blob([sample], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "sample_pharmaguard.vcf";
-  a.click();
-  URL.revokeObjectURL(url);
-}

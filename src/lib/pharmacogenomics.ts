@@ -10,6 +10,10 @@ export interface DetectedVariant {
   rsid: string;
   gene: string;
   star_allele: string;
+  chromosome?: string;
+  position?: number;
+  ref?: string;
+  alt?: string;
 }
 
 /** Risk labels per hackathon schema */
@@ -34,6 +38,7 @@ export interface RiskResult {
   diplotype: string;
   primary_gene: string;
   action: string;
+  dosing_recommendation: string;
   detected_variants: DetectedVariant[];
 }
 
@@ -61,6 +66,7 @@ export interface PharmaGuardReport {
   };
   clinical_recommendation: {
     action: string;
+    dosing_recommendation: string;
   };
   llm_generated_explanation: {
     summary: string;
@@ -117,6 +123,7 @@ export function validateSchema(report: unknown): string | null {
 
   const cr = r.clinical_recommendation as Record<string, unknown>;
   if (!cr || typeof cr.action !== "string") return "clinical_recommendation.action must be a string.";
+  if (typeof cr.dosing_recommendation !== "string") return "clinical_recommendation.dosing_recommendation must be a string.";
 
   const llm = r.llm_generated_explanation as Record<string, unknown>;
   if (!llm || typeof llm !== "object") return "llm_generated_explanation must be an object.";
@@ -140,6 +147,7 @@ interface DrugRule {
   risk: RiskLabel;
   severity: Severity;
   recommendation: string;
+  dosing: string;
 }
 
 interface DiplotypeRule {
@@ -165,16 +173,19 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "none",
           recommendation:
             "Standard codeine dosing. Normal CYP2D6 activity ensures adequate morphine conversion. No dose adjustment required per CPIC Level A.",
+          dosing: "Standard dose: 15–60 mg every 4–6 h as needed (adult). No adjustment required.",
         },
         TRAMADOL: {
           risk: "Safe",
           severity: "none",
           recommendation: "Standard tramadol dosing appropriate for CYP2D6 Normal Metabolizers.",
+          dosing: "Standard dose: 50–100 mg every 4–6 h (max 400 mg/day). No adjustment required.",
         },
         METOPROLOL: {
           risk: "Safe",
           severity: "none",
           recommendation: "Standard metoprolol dosing. Normal CYP2D6-mediated clearance expected.",
+          dosing: "Standard dose per indication. No pharmacogenomic adjustment required.",
         },
       },
     },
@@ -186,11 +197,13 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "moderate",
           recommendation:
             "Reduced codeine-to-morphine conversion. Consider lower starting dose or alternative opioid (e.g., morphine). Monitor for inadequate analgesia.",
+          dosing: "Reduce starting dose by 25–50%. Consider tramadol alternatives. Monitor pain control closely.",
         },
         TRAMADOL: {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation: "Reduced tramadol activation. Monitor efficacy; consider non-CYP2D6-substrate analgesic.",
+          dosing: "Use lower end of dose range. Consider non-opioid analgesic alternatives.",
         },
       },
     },
@@ -201,6 +214,7 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation: "Use reduced codeine dose or select a direct-acting opioid. Close monitoring recommended.",
+          dosing: "Reduce dose by 25%. Reassess after 48 h. Consider direct-acting opioid (morphine, oxycodone).",
         },
       },
     },
@@ -212,12 +226,14 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "high",
           recommendation:
             "CONTRAINDICATED. Non-functional CYP2D6 → codeine accumulates without morphine conversion. Life-threatening toxicity risk. Use morphine or non-opioid analgesics. CPIC Level A.",
+          dosing: "AVOID codeine. Use morphine (0.1–0.2 mg/kg IV/IM) or non-opioid (NSAIDs, acetaminophen) instead.",
         },
         TRAMADOL: {
           risk: "Toxic",
           severity: "high",
           recommendation:
             "Negligible O-desmethyltramadol production. Avoid tramadol. Select alternative analgesic.",
+          dosing: "AVOID tramadol. Use non-CYP2D6 analgesics (e.g., acetaminophen, NSAIDs, morphine).",
         },
       },
     },
@@ -229,6 +245,7 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "high",
           recommendation:
             "AVOID codeine. Non-functional CYP2D6. Accumulation of parent compound with inadequate analgesia. Use morphine or alternative.",
+          dosing: "AVOID codeine entirely. Prescribe morphine sulfate IR or non-opioid analgesic.",
         },
       },
     },
@@ -240,6 +257,7 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "critical",
           recommendation:
             "CONTRAINDICATED. Ultrarapid CYP2D6 → excessive morphine production from codeine. Life-threatening respiratory depression risk (CPIC Level A). Avoid codeine/tramadol. Use non-opioid alternatives.",
+          dosing: "CONTRAINDICATED. Use non-opioid analgesics exclusively. If opioids necessary, use non-CYP2D6 substrates (e.g., buprenorphine, fentanyl) with close monitoring.",
         },
       },
     },
@@ -255,11 +273,13 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "none",
           recommendation:
             "Standard clopidogrel dosing. Expected antiplatelet activation. No dose adjustment required per CPIC Level A.",
+          dosing: "Standard: 75 mg/day maintenance after 300 mg loading dose. No adjustment required.",
         },
         OMEPRAZOLE: {
           risk: "Safe",
           severity: "none",
           recommendation: "Standard omeprazole dosing appropriate for Normal Metabolizers.",
+          dosing: "Standard dose 20–40 mg/day. No pharmacogenomic adjustment required.",
         },
       },
     },
@@ -271,11 +291,13 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "moderate",
           recommendation:
             "Reduced clopidogrel bioactivation. Consider alternative antiplatelet agents (ticagrelor, prasugrel) especially in ACS/high-risk PCI patients. CPIC Level A.",
+          dosing: "Consider switching to ticagrelor 90 mg BID or prasugrel 10 mg/day (if eligible). If clopidogrel continued, consider 150 mg/day maintenance.",
         },
         OMEPRAZOLE: {
           risk: "Adjust Dosage",
           severity: "low",
           recommendation: "Mildly reduced omeprazole clearance. Standard dose typically adequate; monitor response.",
+          dosing: "Standard dose usually adequate. Consider dose reduction if prolonged use planned.",
         },
       },
     },
@@ -287,11 +309,13 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "high",
           recommendation:
             "Severely reduced clopidogrel bioactivation to active thiol metabolite. Use prasugrel or ticagrelor instead (CPIC Level A). Risk of major adverse cardiovascular events.",
+          dosing: "AVOID clopidogrel. Use prasugrel 10 mg/day or ticagrelor 90 mg BID per CPIC Level A recommendation.",
         },
         OMEPRAZOLE: {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation: "Significantly reduced omeprazole clearance. Dose reduction may be warranted.",
+          dosing: "Reduce omeprazole dose by 50% or switch to pantoprazole (not CYP2C19-dependent).",
         },
       },
     },
@@ -303,12 +327,14 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "none",
           recommendation:
             "Enhanced clopidogrel bioactivation. Standard dosing; be aware of potentially increased bleeding risk.",
+          dosing: "Standard dose (75 mg/day). Monitor for bleeding signs given enhanced activation.",
         },
         OMEPRAZOLE: {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation:
             "Accelerated omeprazole clearance. Higher doses may be needed for adequate acid suppression.",
+          dosing: "Consider doubling dose to 40–80 mg/day or switching to pantoprazole.",
         },
       },
     },
@@ -319,6 +345,7 @@ export const pharmacogenomicDB: PharmaDB = {
           risk: "Safe",
           severity: "none",
           recommendation: "Adequate clopidogrel activation expected. Standard dosing appropriate.",
+          dosing: "Standard dose: 75 mg/day maintenance. No adjustment required.",
         },
       },
     },
@@ -334,6 +361,7 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "none",
           recommendation:
             "Standard warfarin initiation per CPIC/IWPC dosing algorithm. Routine INR monitoring as per clinical guidelines.",
+          dosing: "Initiate per IWPC algorithm (typically 5 mg/day). Target INR 2–3. Weekly INR monitoring during initiation.",
         },
       },
     },
@@ -345,6 +373,7 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "moderate",
           recommendation:
             "Reduce initial warfarin dose by ~20–25%. Slower clearance increases bleeding risk. Intensive INR monitoring during initiation. CPIC Level A.",
+          dosing: "Reduce starting dose by 20–25% (e.g., 3.75 mg/day). INR check at day 3, 5, 7, then weekly. Target INR 2–3.",
         },
       },
     },
@@ -356,6 +385,7 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "moderate",
           recommendation:
             "Reduce initial warfarin dose by 30–40%. CYP2C9*3 severely impairs warfarin S-enantiomer hydroxylation. Frequent INR monitoring mandatory.",
+          dosing: "Reduce starting dose by 30–40% (e.g., 3 mg/day). INR at day 3, 5, 7, then twice-weekly until stable. Target INR 2–3.",
         },
       },
     },
@@ -367,6 +397,7 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "high",
           recommendation:
             "Significant dose reduction required (~50–60% of standard). Extreme warfarin sensitivity. Genotype-guided dosing algorithm (IWPC) recommended. Intensive INR monitoring.",
+          dosing: "Initiate at ≤2.5 mg/day. INR every 2–3 days until stable. Consider direct oral anticoagulant (DOAC) as safer alternative.",
         },
       },
     },
@@ -378,6 +409,7 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "critical",
           recommendation:
             "Consider alternative anticoagulant (DOAC). If warfarin necessary, initiate at very low dose under expert supervision with intensive monitoring. CPIC Level A.",
+          dosing: "STRONGLY prefer apixaban, rivaroxaban, or dabigatran. If warfarin required: start ≤1.5 mg/day with INR monitoring every 2 days. Expert pharmacogenomics consultation mandatory.",
         },
       },
     },
@@ -393,6 +425,7 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "none",
           recommendation:
             "Standard simvastatin dosing. Normal OATP1B1 transport function. Routine CK monitoring per standard guidelines.",
+          dosing: "Standard dose up to 40 mg/day. No pharmacogenomic dose restriction. Routine CK monitoring.",
         },
       },
     },
@@ -404,6 +437,7 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "moderate",
           recommendation:
             "Increased simvastatin plasma exposure due to reduced hepatic uptake. Use ≤20 mg/day or switch to pravastatin/rosuvastatin. CPIC Level A.",
+          dosing: "Cap simvastatin at 20 mg/day OR switch to pravastatin 40 mg/day or rosuvastatin 10–20 mg/day (less SLCO1B1-dependent). CK monitoring every 3 months.",
         },
       },
     },
@@ -415,6 +449,7 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "high",
           recommendation:
             "HIGH RISK of simvastatin-induced myopathy and rhabdomyolysis. Avoid simvastatin >20 mg. Strongly prefer pravastatin or rosuvastatin. Monitor CK. CPIC Level A.",
+          dosing: "AVOID simvastatin. Use pravastatin 40 mg/day or rosuvastatin 10 mg/day. Baseline CK + monthly monitoring for 3 months.",
         },
       },
     },
@@ -430,11 +465,13 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "none",
           recommendation:
             "Standard azathioprine dosing. Normal TPMT activity. Routine CBC monitoring per immunosuppression protocol.",
+          dosing: "Standard dose: 1–3 mg/kg/day. CBC weekly for first month, then monthly. Adjust per clinical response.",
         },
         MERCAPTOPURINE: {
           risk: "Safe",
           severity: "none",
           recommendation: "Standard mercaptopurine dosing for Normal TPMT Metabolizers.",
+          dosing: "Standard dose: 1.5–2.5 mg/kg/day. CBC monitoring weekly initially.",
         },
       },
     },
@@ -446,11 +483,13 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "moderate",
           recommendation:
             "Reduce azathioprine starting dose by 30–70% of standard. Monitor CBC closely for myelosuppression. Titrate based on tolerance. CPIC Level A.",
+          dosing: "Start at 0.5–1.5 mg/kg/day (30–70% reduction). CBC weekly × 4, then every 2 weeks. Titrate based on CBC and clinical response.",
         },
         MERCAPTOPURINE: {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation: "Reduce mercaptopurine starting dose by 30–70%. Weekly CBC monitoring.",
+          dosing: "Start at 0.5–1.5 mg/kg/day. Weekly CBC monitoring. Increase cautiously based on tolerance.",
         },
       },
     },
@@ -462,12 +501,14 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "critical",
           recommendation:
             "LIFE-THREATENING risk. Standard doses cause severe myelosuppression. Reduce to ~10% of standard dose or select alternative immunosuppressant. Mandatory CBC monitoring. CPIC Level A.",
+          dosing: "Reduce to 10% of standard dose (≈0.1–0.3 mg/kg/day, 3×/week dosing) OR switch to mycophenolate mofetil. Daily CBC for first 2 weeks. Immediate cessation if CBC deteriorates.",
         },
         MERCAPTOPURINE: {
           risk: "Toxic",
           severity: "critical",
           recommendation:
             "Severe myelosuppression risk. Reduce to 10% of standard dose. Consider alternative therapy. CPIC Level A.",
+          dosing: "Reduce to 10% of standard dose (3×/week). Daily CBC monitoring. Immediate hematology referral.",
         },
       },
     },
@@ -483,11 +524,13 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "none",
           recommendation:
             "Standard 5-FU dosing. Normal DPD enzyme activity. Proceed with standard oncology protocol.",
+          dosing: "Standard oncology protocol dose. No pharmacogenomic restriction. Monitor per standard toxicity criteria (NCI-CTCAE).",
         },
         CAPECITABINE: {
           risk: "Safe",
           severity: "none",
           recommendation: "Standard capecitabine dosing for Normal DPYD Metabolizers.",
+          dosing: "Standard dose: 1250 mg/m² BID × 14 days per cycle. No adjustment required.",
         },
       },
     },
@@ -499,11 +542,13 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "moderate",
           recommendation:
             "Reduce 5-FU starting dose by 50%. Reduced DPD activity increases severe toxicity risk. Monitor for mucositis, myelosuppression, diarrhea. CPIC Level A.",
+          dosing: "Reduce starting dose by 50%. Consider DPD phenotyping (uracil breath test) before further escalation. NCI-CTCAE grade 3+ toxicity → hold and reduce further.",
         },
         CAPECITABINE: {
           risk: "Adjust Dosage",
           severity: "moderate",
           recommendation: "Reduce capecitabine dose by 50%. Monitor closely for Grade 3–4 toxicities.",
+          dosing: "Reduce to 625 mg/m² BID (50% reduction). Monitor for hand-foot syndrome, mucositis, diarrhea. Grade 3+ → hold therapy.",
         },
       },
     },
@@ -515,12 +560,14 @@ export const pharmacogenomicDB: PharmaDB = {
           severity: "critical",
           recommendation:
             "CONTRAINDICATED. Complete DPD deficiency → life-threatening 5-FU toxicity. Avoid all fluoropyrimidines or use only under expert supervision with >75% dose reduction. CPIC Level A.",
+          dosing: "CONTRAINDICATED for fluoropyrimidines. If oncologically necessary: >75% dose reduction with expert pharmacogenomics consultation, uracil monitoring, and intensive toxicity surveillance.",
         },
         CAPECITABINE: {
           risk: "Toxic",
           severity: "critical",
           recommendation:
             "CONTRAINDICATED. Complete DPD deficiency. Life-threatening toxicity. Avoid capecitabine. CPIC Level A.",
+          dosing: "CONTRAINDICATED. Consider non-fluoropyrimidine chemotherapy regimens. Oncology + clinical pharmacogenomics consultation mandatory.",
         },
       },
     },
@@ -570,7 +617,7 @@ export function parseVCF(fileContent: string): ParsedVCF {
 }
 
 /**
- * extractVariants – Parses VCF lines, extracting GENE, STAR, and RS tags from INFO column.
+ * extractVariants – Parses VCF lines, extracting GENE, STAR, RS, CHROM, POS, REF, ALT.
  * Ignores header lines (starting with #). Requires GENE= tag to register a variant.
  * Prefers RS= tag for rsid; falls back to VCF ID column (col[2]).
  */
@@ -585,7 +632,11 @@ function extractVariants(lines: string[]): DetectedVariant[] {
     if (cols.length < 8) continue;
 
     // Standard VCF columns: CHROM(0) POS(1) ID(2) REF(3) ALT(4) QUAL(5) FILTER(6) INFO(7)
+    const chrom = cols[0] || "";
+    const pos = parseInt(cols[1], 10);
     const vcfId = cols[2] && cols[2] !== "." ? cols[2] : "";
+    const ref = cols[3] && cols[3] !== "." ? cols[3] : "";
+    const alt = cols[4] && cols[4] !== "." ? cols[4] : "";
     const info = cols[7] || "";
 
     const infoTags = parseInfoTags(info);
@@ -599,7 +650,15 @@ function extractVariants(lines: string[]): DetectedVariant[] {
       : (vcfId || "unknown");
 
     if (gene) {
-      variants.push({ rsid, gene, star_allele: star });
+      variants.push({
+        rsid,
+        gene,
+        star_allele: star,
+        chromosome: chrom,
+        position: isNaN(pos) ? undefined : pos,
+        ref: ref || undefined,
+        alt: alt || undefined,
+      });
     }
   }
 
@@ -668,6 +727,7 @@ export function classifyRisk(drug: string, variants: DetectedVariant[]): RiskRes
           diplotype,
           primary_gene: gene,
           action: drugRule.recommendation,
+          dosing_recommendation: drugRule.dosing,
           detected_variants: geneVariants,
         };
       }
@@ -690,6 +750,9 @@ export function classifyRisk(drug: string, variants: DetectedVariant[]): RiskRes
         action: drugRule
           ? `[Partial match – ${diplotype} not in DB] ${drugRule.recommendation}`
           : "Insufficient diplotype data. Consult clinical pharmacogenomics specialist.",
+        dosing_recommendation: drugRule
+          ? `[Estimated] ${drugRule.dosing}`
+          : "Consult clinical pharmacogenomics specialist for dosing guidance.",
         detected_variants: geneVariants,
       };
     }
@@ -706,6 +769,8 @@ export function classifyRisk(drug: string, variants: DetectedVariant[]): RiskRes
     primary_gene: "Not detected",
     action:
       "No pharmacogenomic data available for this gene-drug pair. Apply standard clinical guidelines and monitor closely for adverse effects.",
+    dosing_recommendation:
+      "Use standard dosing per prescribing information. No pharmacogenomic adjustment available. Monitor closely for adverse effects.",
     detected_variants: [],
   };
 }
@@ -743,6 +808,7 @@ export function generateJSON(
     },
     clinical_recommendation: {
       action: riskResult.action,
+      dosing_recommendation: riskResult.dosing_recommendation,
     },
     llm_generated_explanation: llmExplanation,
     quality_metrics: {

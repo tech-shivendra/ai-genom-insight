@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useTiltEffect } from "@/hooks/use-animations";
-import { AnalysisResult, PharmaGuardReport, RiskLabel } from "@/lib/pharmacogenomics";
+import { AnalysisResult, PharmaGuardReport, RiskLabel, DetectedVariant } from "@/lib/pharmacogenomics";
 
 // ─── Risk display config ──────────────────────────────────────
 
@@ -109,6 +109,7 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
   const profile = report.pharmacogenomic_profile;
   const llm = report.llm_generated_explanation;
   const qm = report.quality_metrics;
+  const cr = report.clinical_recommendation;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(JSON.stringify(report, null, 2));
@@ -171,12 +172,16 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
             <div className="text-xs text-muted-foreground mb-2">Detected Variants</div>
             <div className="flex flex-wrap gap-1.5">
               {profile.detected_variants.map((v) => (
-                <span
+                <a
                   key={v.rsid}
-                  className="text-xs font-mono glass rounded-full px-2.5 py-1 text-neon-cyan border border-neon-cyan/20"
+                  href={`https://www.pharmgkb.org/variant/${v.rsid}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="View on PharmGKB"
+                  className="text-xs font-mono glass rounded-full px-2.5 py-1 text-neon-cyan border border-neon-cyan/20 hover:border-neon-cyan/50 hover:bg-neon-cyan/10 transition-colors cursor-pointer"
                 >
                   {v.rsid} ({v.star_allele})
-                </span>
+                </a>
               ))}
             </div>
           </div>
@@ -211,7 +216,7 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
 
         <div
           className={`overflow-hidden transition-all duration-500 ${
-            expanded ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0"
+            expanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
           }`}
         >
           <div className="space-y-3 pt-3">
@@ -220,7 +225,18 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
                 Clinical Recommendation
               </div>
               <p className="text-sm text-foreground leading-relaxed">
-                {report.clinical_recommendation.action}
+                {cr.action}
+              </p>
+            </div>
+            <div className="glass rounded-xl p-4 border border-neon-yellow/20">
+              <div className="text-xs font-semibold text-neon-yellow mb-2 uppercase tracking-wider flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Dosing Recommendation (CPIC Level A)
+              </div>
+              <p className="text-sm text-foreground leading-relaxed font-medium">
+                {cr.dosing_recommendation}
               </p>
             </div>
             <div className="glass rounded-xl p-4">
@@ -237,7 +253,7 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
             </div>
             <div className="glass rounded-xl p-4">
               <div className="text-xs font-semibold text-neon-green mb-2 uppercase tracking-wider">
-                Clinical Impact & Dosing
+                Clinical Impact
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">{llm.clinical_impact}</p>
             </div>
@@ -272,6 +288,112 @@ const ResultCard = ({ report }: { report: PharmaGuardReport }) => {
             Download
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Variant Browser Table ────────────────────────────────────
+
+const VariantBrowser = ({ variants }: { variants: DetectedVariant[] }) => {
+  const [sortKey, setSortKey] = useState<keyof DetectedVariant>("gene");
+  const [sortAsc, setSortAsc] = useState(true);
+
+  if (variants.length === 0) return null;
+
+  const sorted = [...variants].sort((a, b) => {
+    const av = String(a[sortKey] ?? "");
+    const bv = String(b[sortKey] ?? "");
+    return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+
+  const handleSort = (key: keyof DetectedVariant) => {
+    if (sortKey === key) setSortAsc(!sortAsc);
+    else { setSortKey(key); setSortAsc(true); }
+  };
+
+  const downloadCSV = () => {
+    const header = "rsID,Gene,Star Allele,Chromosome,Position,REF,ALT";
+    const rows = variants.map(v =>
+      `${v.rsid},${v.gene},${v.star_allele},${v.chromosome ?? ""},${v.position ?? ""},${v.ref ?? ""},${v.alt ?? ""}`
+    );
+    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "pharmaguard-variants.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const SortIcon = ({ col }: { col: keyof DetectedVariant }) => (
+    <svg className={`w-3 h-3 inline ml-1 ${sortKey === col ? "text-neon-cyan" : "text-muted-foreground/50"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+        d={sortKey === col && !sortAsc ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+    </svg>
+  );
+
+  return (
+    <div className="glass rounded-2xl overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-neon-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+          </svg>
+          <span className="text-sm font-semibold text-foreground">Variant Browser</span>
+          <span className="glass rounded-full px-2 py-0.5 text-xs text-neon-cyan">{variants.length} variants</span>
+        </div>
+        <button
+          onClick={downloadCSV}
+          className="flex items-center gap-1.5 text-xs glass rounded-lg px-3 py-1.5 hover:text-neon-cyan transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Export CSV
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border bg-muted/20">
+              {([["rsid","rsID"],["gene","Gene"],["star_allele","Star Allele"],["chromosome","Chr"],["position","Position"],["ref","REF"],["alt","ALT"]] as [keyof DetectedVariant, string][]).map(([key, label]) => (
+                <th
+                  key={key}
+                  className="px-4 py-2.5 text-left font-semibold text-muted-foreground cursor-pointer hover:text-foreground transition-colors whitespace-nowrap"
+                  onClick={() => handleSort(key)}
+                >
+                  {label}<SortIcon col={key} />
+                </th>
+              ))}
+              <th className="px-4 py-2.5 text-left font-semibold text-muted-foreground whitespace-nowrap">PharmGKB</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((v, i) => (
+              <tr key={`${v.rsid}-${i}`} className="border-b border-border/40 hover:bg-muted/20 transition-colors">
+                <td className="px-4 py-2.5 font-mono text-neon-cyan">{v.rsid}</td>
+                <td className="px-4 py-2.5 font-bold text-foreground">{v.gene}</td>
+                <td className="px-4 py-2.5 font-mono text-neon-purple">{v.star_allele}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">{v.chromosome || "—"}</td>
+                <td className="px-4 py-2.5 font-mono text-muted-foreground">{v.position?.toLocaleString() || "—"}</td>
+                <td className="px-4 py-2.5 font-mono text-muted-foreground">{v.ref || "—"}</td>
+                <td className="px-4 py-2.5 font-mono text-muted-foreground">{v.alt || "—"}</td>
+                <td className="px-4 py-2.5">
+                  <a
+                    href={`https://www.pharmgkb.org/variant/${v.rsid}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-neon-cyan hover:underline flex items-center gap-1"
+                  >
+                    View
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -339,6 +461,9 @@ const JsonViewer = ({
           <div className="w-3 h-3 rounded-full bg-neon-green/60" />
           <span className="ml-2 text-xs text-muted-foreground font-mono">
             {report.drug.toLowerCase()}_report.json
+          </span>
+          <span className="text-xs glass rounded-full px-2 py-0.5 text-neon-green border border-neon-green/30 ml-2">
+            ✓ Schema Valid
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -433,7 +558,7 @@ interface ResultsSectionProps {
 }
 
 export const ResultsSection = ({ results, onNewAnalysis }: ResultsSectionProps) => {
-  const { reports, patientId, variantsFound, schemaErrors } = results;
+  const { reports, patientId, variantsFound, schemaErrors, variants } = results;
 
   const counts: Record<RiskLabel, number> = {
     Safe: 0,
@@ -531,6 +656,9 @@ export const ResultsSection = ({ results, onNewAnalysis }: ResultsSectionProps) 
               INFO column contains{" "}
               <code className="text-neon-cyan">GENE=</code> and{" "}
               <code className="text-neon-cyan">STAR=</code> annotations.
+              Download the{" "}
+              <a href="/sample.vcf" download className="text-neon-cyan hover:underline">sample VCF</a>{" "}
+              to see the expected format.
             </p>
           </div>
         )}
@@ -543,6 +671,17 @@ export const ResultsSection = ({ results, onNewAnalysis }: ResultsSectionProps) 
             </div>
           ))}
         </div>
+
+        {/* Variant browser table */}
+        {variants && variants.length > 0 && (
+          <div className="max-w-5xl mx-auto mb-12 reveal" style={{ transitionDelay: "0.2s" }}>
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <span className="text-neon-cyan">🔬</span>
+              Parsed Variant Browser
+            </h3>
+            <VariantBrowser variants={variants} />
+          </div>
+        )}
 
         {/* Aggregated JSON viewer */}
         <div className="max-w-3xl mx-auto reveal" style={{ transitionDelay: "0.3s" }}>
