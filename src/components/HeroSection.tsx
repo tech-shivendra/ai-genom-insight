@@ -133,9 +133,9 @@ export const HeroSection = () => {
               style={{ animationDelay: "0.4s" }}
             >
               {[
-                { label: "Genes Analyzed", value: "2,400+" },
-                { label: "Drug Interactions", value: "850+" },
-                { label: "Accuracy", value: "97.4%" },
+              { label: "Genes Covered", value: "6" },
+                { label: "Drug-Gene Pairs", value: "30+" },
+                { label: "CPIC Level", value: "A" },
               ].map((s) => (
                 <div key={s.label}>
                   <div className="text-2xl font-bold gradient-text">{s.value}</div>

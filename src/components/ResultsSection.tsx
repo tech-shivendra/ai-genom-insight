@@ -429,9 +429,10 @@ const SafetyDisclaimer = () => (
 
 interface ResultsSectionProps {
   results: AnalysisResult;
+  onNewAnalysis?: () => void;
 }
 
-export const ResultsSection = ({ results }: ResultsSectionProps) => {
+export const ResultsSection = ({ results, onNewAnalysis }: ResultsSectionProps) => {
   const { reports, patientId, variantsFound, schemaErrors } = results;
 
   const counts: Record<RiskLabel, number> = {
@@ -457,9 +458,22 @@ export const ResultsSection = ({ results }: ResultsSectionProps) => {
       <div className="container mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-12 reveal">
-          <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-sm mb-6">
-            <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
-            <span className="text-neon-green font-medium">Analysis Complete</span>
+          <div className="flex items-center justify-center gap-3 mb-6 flex-wrap">
+            <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 text-sm">
+              <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
+              <span className="text-neon-green font-medium">Analysis Complete</span>
+            </div>
+            {onNewAnalysis && (
+              <button
+                onClick={onNewAnalysis}
+                className="inline-flex items-center gap-1.5 glass rounded-full px-4 py-2 text-sm text-muted-foreground hover:text-neon-cyan hover:border-neon-cyan/40 border border-border/50 transition-all duration-200"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                New Analysis
+              </button>
+            )}
           </div>
           <h2 className="text-4xl md:text-5xl font-display font-black mb-4">
             Pharmacogenomic <span className="gradient-text">Risk Report</span>
@@ -467,7 +481,7 @@ export const ResultsSection = ({ results }: ResultsSectionProps) => {
           <p className="text-muted-foreground">
             Patient ID:{" "}
             <span className="font-mono text-neon-cyan font-medium">{patientId}</span>{" "}
-            · {variantsFound} variants parsed · {reports.length} drug
+            · {variantsFound} variant{variantsFound !== 1 ? "s" : ""} parsed · {reports.length} drug
             {reports.length !== 1 ? "s" : ""} analyzed
           </p>
         </div>

@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { runAnalysis, setGeminiKey, AnalysisResult, SUPPORTED_DRUGS } from "@/lib/pharmacogenomics";
 
-// All drugs available in the pharmacogenomic DB
+// All drugs available in the pharmacogenomic DB (displayed in dropdown)
 const DRUG_LIST = [
   "Warfarin", "Clopidogrel", "Codeine", "Simvastatin",
   "Azathioprine", "Fluorouracil", "Capecitabine", "Omeprazole",
@@ -10,6 +10,8 @@ const DRUG_LIST = [
 
 interface UploadSectionProps {
   onResults: (results: AnalysisResult) => void;
+  onReset?: () => void;
+  hasResults?: boolean;
 }
 
 type AnalysisStep = "idle" | "parsing" | "classifying" | "explaining" | "done";
@@ -27,7 +29,7 @@ function isDrugSupported(drug: string): boolean {
   return SUPPORTED_DRUGS.has(drug.toUpperCase().trim());
 }
 
-export const UploadSection = ({ onResults }: UploadSectionProps) => {
+export const UploadSection = ({ onResults, onReset, hasResults }: UploadSectionProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [selectedDrugs, setSelectedDrugs] = useState<string[]>([]);
@@ -52,14 +54,17 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
     setFileError(null);
     setAnalysisError(null);
 
+    // Validate file type
     if (!file.name.toLowerCase().endsWith(".vcf") && !file.name.toLowerCase().endsWith(".vcf.gz")) {
-      setFileError("Invalid file type. Please upload a .vcf file.");
+      setFileError("Invalid file type. Please upload a .vcf or .vcf.gz file.");
       return;
     }
+    // Validate file size (5 MB limit)
     if (file.size > 5 * 1024 * 1024) {
-      setFileError("File too large. Maximum size is 5 MB.");
+      setFileError("File too large. Maximum allowed size is 5 MB.");
       return;
     }
+    // Validate non-empty
     if (file.size === 0) {
       setFileError("File is empty. Please upload a valid VCF file.");
       return;
@@ -77,6 +82,8 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) handleFileAccept(file);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
   };
 
   // ── Drug selection ─────────────────────────────────────────
@@ -102,7 +109,7 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
     }
   };
 
-  // Drugs that are selected but not in our DB (warn user)
+  // Drugs selected but not in our DB (show warning)
   const unsupportedSelected = selectedDrugs.filter((d) => !isDrugSupported(d));
 
   // ── API key ────────────────────────────────────────────────
@@ -112,6 +119,18 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
     setKeySaved(true);
     setShowKeyInput(false);
     setTimeout(() => setKeySaved(false), 3000);
+  };
+
+  // ── Reset ──────────────────────────────────────────────────
+
+  const handleReset = () => {
+    setUploadedFile(null);
+    setSelectedDrugs([]);
+    setFileError(null);
+    setAnalysisError(null);
+    setAnalysisStep("idle");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    onReset?.();
   };
 
   // ── Analysis ───────────────────────────────────────────────
@@ -133,16 +152,16 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
       setAnalysisStep("parsing");
       const vcfContent = await readFileAsText(uploadedFile!);
 
-      await delay(500);
+      await delay(400);
       setAnalysisStep("classifying");
-      await delay(600);
+      await delay(500);
       setAnalysisStep("explaining");
 
       const results = await runAnalysis(vcfContent, selectedDrugs);
 
       if (!results.vcfSuccess) {
         setAnalysisError(
-          "VCF parsing failed. Ensure the file is a valid VCF format with tab-separated columns."
+          "VCF parsing failed. Ensure the file is a valid VCF v4.1/v4.2 format with ##fileformat header and tab-separated columns (minimum 8 columns including INFO)."
         );
         return;
       }
@@ -237,14 +256,14 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                     {isDragging ? "Drop your VCF file here" : "Drag & drop your VCF file"}
                   </p>
                   <p className="text-muted-foreground text-sm mt-1">
-                    or click to browse · .vcf supported · max 5 MB
+                    or click to browse · .vcf / .vcf.gz supported · max 5 MB
                   </p>
                 </div>
                 <div className="inline-flex items-center gap-2 text-xs text-muted-foreground glass rounded-full px-3 py-1">
                   <svg className="w-3 h-3 text-neon-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
-                  Processed client-side only · No data uploaded
+                  Processed client-side only · No data uploaded to servers
                 </div>
               </div>
             )}
@@ -252,7 +271,7 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
 
           {/* File error */}
           {fileError && (
-            <div className="flex items-start gap-3 glass rounded-xl p-4 border border-neon-red/30">
+            <div className="flex items-start gap-3 glass rounded-xl p-4 border border-neon-red/30" role="alert">
               <svg className="w-5 h-5 text-neon-red flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -265,7 +284,7 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             <label className="block text-sm font-semibold text-foreground">
               Select Drugs to Analyze
               <span className="ml-2 text-xs text-muted-foreground font-normal">
-                ({selectedDrugs.length} selected)
+                ({selectedDrugs.length} selected · comma-separated input supported)
               </span>
             </label>
 
@@ -284,9 +303,9 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                           : "text-neon-cyan glow-border hover:bg-neon-cyan/10"
                       }`}
                       aria-label={`Remove ${drug}`}
-                      title={unsupported ? "Drug not in pharmacogenomic database — results will be Unknown" : undefined}
+                      title={unsupported ? "Drug not in pharmacogenomic database — results will be Unknown" : `Remove ${drug}`}
                     >
-                      {unsupported && <span>⚠</span>}
+                      {unsupported && <span aria-label="warning">⚠</span>}
                       {drug}
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -299,13 +318,14 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
 
             {/* Unsupported drug warning */}
             {unsupportedSelected.length > 0 && (
-              <div className="flex items-start gap-2 text-xs text-neon-yellow">
+              <div className="flex items-start gap-2 text-xs text-neon-yellow" role="alert">
                 <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <span>
                   <span className="font-medium">{unsupportedSelected.join(", ")}</span>{" "}
-                  {unsupportedSelected.length === 1 ? "is" : "are"} not in the pharmacogenomic database — analysis will return Unknown risk.
+                  {unsupportedSelected.length === 1 ? "is" : "are"} not in the pharmacogenomic database —
+                  analysis will return Unknown risk with standard CPIC guidance.
                 </span>
               </div>
             )}
@@ -321,17 +341,25 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                 onKeyDown={handleDrugSearchKeyDown}
                 placeholder="Search drugs (e.g. Warfarin, Codeine) or type comma-separated"
                 className="w-full bg-muted/50 border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-cyan/50 focus:ring-1 focus:ring-neon-cyan/30 transition-all"
-                aria-label="Search drugs"
+                aria-label="Search and add drugs"
+                aria-expanded={dropdownOpen}
+                aria-haspopup="listbox"
               />
-              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
 
               {dropdownOpen && filteredDrugs.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 glass-strong rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto shadow-card-dark">
+                <div
+                  className="absolute top-full left-0 right-0 mt-2 glass-strong rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto shadow-card-dark"
+                  role="listbox"
+                  aria-label="Drug suggestions"
+                >
                   {filteredDrugs.map((drug) => (
                     <button
                       key={drug}
+                      role="option"
+                      aria-selected={selectedDrugs.includes(drug)}
                       onMouseDown={() => { toggleDrug(drug); setDrugSearch(""); }}
                       className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-neon-cyan/10 hover:text-neon-cyan transition-colors"
                     >
@@ -344,11 +372,34 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                 </div>
               )}
             </div>
+
+            {/* Quick-select chips for the 6 required drugs */}
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground font-medium">Quick select (CPIC Level A drugs):</p>
+              <div className="flex flex-wrap gap-1.5">
+                {["Codeine", "Warfarin", "Clopidogrel", "Simvastatin", "Azathioprine", "Fluorouracil"].map((drug) => {
+                  const selected = selectedDrugs.includes(drug);
+                  return (
+                    <button
+                      key={drug}
+                      onClick={() => toggleDrug(drug)}
+                      className={`text-xs px-3 py-1 rounded-full border transition-all duration-200 ${
+                        selected
+                          ? "bg-neon-cyan/15 text-neon-cyan border-neon-cyan/50"
+                          : "glass text-muted-foreground border-border/50 hover:text-foreground hover:border-neon-cyan/30"
+                      }`}
+                    >
+                      {selected && "✓ "}{drug}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Analysis error */}
           {analysisError && (
-            <div className="flex items-start gap-3 glass rounded-xl p-4 border border-neon-red/30">
+            <div className="flex items-start gap-3 glass rounded-xl p-4 border border-neon-red/30" role="alert">
               <svg className="w-5 h-5 text-neon-red flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -356,11 +407,12 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             </div>
           )}
 
-          {/* OpenAI API key (optional) */}
+          {/* Gemini API key (optional) */}
           <div className="glass rounded-xl p-4">
             <button
               onClick={() => setShowKeyInput((v) => !v)}
               className="flex items-center justify-between w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+              aria-expanded={showKeyInput}
             >
               <div className="flex items-center gap-2">
                 <svg className="w-4 h-4 text-neon-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -370,7 +422,7 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                   <span className="text-neon-purple font-medium">Optional:</span> Gemini API key for AI explanations
                 </span>
                 {keySaved && (
-                  <span className="text-xs text-neon-green font-medium">✓ Saved</span>
+                  <span className="text-xs text-neon-green font-medium" role="status">✓ Saved</span>
                 )}
               </div>
               <svg className={`w-4 h-4 transition-transform duration-200 ${showKeyInput ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -380,8 +432,8 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             {showKeyInput && (
               <div className="mt-3 space-y-2">
                 <p className="text-xs text-muted-foreground">
-                  Without a key, deterministic rule-based CPIC explanations are generated automatically.
-                  Your key is never stored or transmitted beyond the Gemini API call.
+                  Without a key, deterministic CPIC rule-based explanations are generated automatically.
+                  Your key is used only for the Gemini API call and is never stored on any server.
                 </p>
                 <div className="flex gap-2">
                   <input
@@ -392,15 +444,27 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
                     placeholder="AIzaSy..."
                     className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-purple/50 transition-all"
                     aria-label="Gemini API key"
+                    autoComplete="off"
                   />
                   <button
                     onClick={handleSaveKey}
-                    className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all"
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all hover:opacity-90"
                     style={{ background: "hsl(265 60% 45%)", border: "1px solid hsl(265 60% 60% / 0.4)" }}
                   >
                     Save
                   </button>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Get a free key at{" "}
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-neon-cyan hover:underline"
+                  >
+                    aistudio.google.com
+                  </a>
+                </p>
               </div>
             )}
           </div>
@@ -421,15 +485,18 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             <div className="mt-3 space-y-3">
               <p className="text-xs text-muted-foreground">
                 The engine reads the <code className="text-neon-cyan">INFO</code> column for{" "}
-                <code className="text-neon-cyan">GENE=</code> and{" "}
-                <code className="text-neon-cyan">STAR=</code> tags (tab-delimited, 8+ columns).
+                <code className="text-neon-cyan">GENE=</code>,{" "}
+                <code className="text-neon-cyan">STAR=</code>, and{" "}
+                <code className="text-neon-cyan">RS=</code> tags (tab-delimited, 8+ columns, VCF v4.1/v4.2).
               </p>
-              <pre className="text-xs font-mono text-muted-foreground bg-muted/30 rounded-lg p-3 overflow-x-auto leading-relaxed">{`##fileformat=VCFv4.1
+              <pre className="text-xs font-mono text-muted-foreground bg-muted/30 rounded-lg p-3 overflow-x-auto leading-relaxed">{`##fileformat=VCFv4.2
 #CHROM  POS       ID          REF  ALT  QUAL  FILTER  INFO
 1       97915614  rs1065852   C    T    .     PASS    GENE=CYP2D6;STAR=*4;RS=rs1065852
 10      96741053  rs4244285   G    A    .     PASS    GENE=CYP2C19;STAR=*2;RS=rs4244285
 10      96702047  rs1799853   C    T    .     PASS    GENE=CYP2C9;STAR=*2;RS=rs1799853
-12      21331549  rs4149056   T    C    .     PASS    GENE=SLCO1B1;STAR=*5;RS=rs4149056`}</pre>
+12      21331549  rs4149056   T    C    .     PASS    GENE=SLCO1B1;STAR=*5;RS=rs4149056
+6       18128556  rs1800460   C    T    .     PASS    GENE=TPMT;STAR=*3A;RS=rs1800460
+1       97305364  rs3918290   C    T    .     PASS    GENE=DPYD;STAR=*2A;RS=rs3918290`}</pre>
               <button
                 onClick={downloadSampleVCF}
                 className="inline-flex items-center gap-2 text-xs font-medium text-neon-cyan hover:underline"
@@ -442,41 +509,57 @@ export const UploadSection = ({ onResults }: UploadSectionProps) => {
             </div>
           </details>
 
-          {/* Analyze button */}
-          <button
-            onClick={handleAnalyze}
-            disabled={!canAnalyze}
-            className="w-full relative py-4 rounded-xl font-bold text-lg overflow-hidden transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
-            style={{
-              background: isAnalyzing
-                ? "linear-gradient(135deg, hsl(265 60% 40%), hsl(265 60% 35%))"
-                : "linear-gradient(135deg, hsl(183 100% 35%), hsl(175 80% 30%))",
-              boxShadow: isAnalyzing
-                ? "var(--glow-purple)"
-                : canAnalyze
-                ? "var(--glow-cyan)"
-                : "none",
-            }}
-            aria-label="Analyze patient data"
-          >
-            {isAnalyzing ? (
-              <span className="flex items-center justify-center gap-3">
-                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                <span className="text-white">{STEP_LABELS[analysisStep]}</span>
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2 text-white group-hover:scale-105 transition-transform duration-200">
+          {/* Analyze + Reset buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={handleAnalyze}
+              disabled={!canAnalyze}
+              className="flex-1 relative py-4 rounded-xl font-bold text-lg overflow-hidden transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
+              style={{
+                background: isAnalyzing
+                  ? "linear-gradient(135deg, hsl(265 60% 40%), hsl(265 60% 35%))"
+                  : "linear-gradient(135deg, hsl(183 100% 35%), hsl(175 80% 30%))",
+                boxShadow: isAnalyzing
+                  ? "var(--glow-purple)"
+                  : canAnalyze
+                  ? "var(--glow-cyan)"
+                  : "none",
+              }}
+              aria-label="Analyze patient data"
+            >
+              {isAnalyzing ? (
+                <span className="flex items-center justify-center gap-3">
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span className="text-white">{STEP_LABELS[analysisStep]}</span>
+                </span>
+              ) : (
+                <span className="flex items-center justify-center gap-2 text-white group-hover:scale-105 transition-transform duration-200">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  {getButtonLabel()}
+                </span>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+            </button>
+
+            {/* Reset / New Analysis button */}
+            {(uploadedFile || hasResults) && !isAnalyzing && (
+              <button
+                onClick={handleReset}
+                className="px-4 py-4 rounded-xl font-medium text-sm glass border border-border/50 text-muted-foreground hover:text-foreground hover:border-neon-red/40 hover:text-neon-red transition-all duration-200"
+                aria-label="Reset analysis"
+                title="Clear file and results"
+              >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                {getButtonLabel()}
-              </span>
+              </button>
             )}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-          </button>
+          </div>
 
           {/* Validation hint */}
           {(!uploadedFile || selectedDrugs.length === 0) && !isAnalyzing && (
@@ -511,9 +594,16 @@ function delay(ms: number): Promise<void> {
 
 function downloadSampleVCF() {
   const sample = [
-    "##fileformat=VCFv4.1",
+    "##fileformat=VCFv4.2",
     "##source=PharmaGuard-Sample",
     "##reference=GRCh38",
+    "##contig=<ID=1,length=248956422>",
+    "##contig=<ID=6,length=170805979>",
+    "##contig=<ID=10,length=133797422>",
+    "##contig=<ID=12,length=133275309>",
+    "##INFO=<ID=GENE,Number=1,Type=String,Description=\"Gene symbol\">",
+    "##INFO=<ID=STAR,Number=1,Type=String,Description=\"Star allele\">",
+    "##INFO=<ID=RS,Number=1,Type=String,Description=\"dbSNP rsID\">",
     "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
     "1\t97915614\trs1065852\tC\tT\t.\tPASS\tGENE=CYP2D6;STAR=*4;RS=rs1065852",
     "10\t96741053\trs4244285\tG\tA\t.\tPASS\tGENE=CYP2C19;STAR=*2;RS=rs4244285",

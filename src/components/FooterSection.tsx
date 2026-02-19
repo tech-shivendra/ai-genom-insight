@@ -90,7 +90,7 @@ export const FooterSection = () => {
         {/* Bottom bar */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-xs text-muted-foreground">
-            © 2025 PharmaGuard AI. Built for{" "}
+          © 2026 PharmaGuard AI. Built for{" "}
             <span className="text-neon-cyan font-medium">precision medicine research</span>.
             Not for clinical use without validation.
           </div>

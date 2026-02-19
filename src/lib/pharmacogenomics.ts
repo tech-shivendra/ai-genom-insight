@@ -1,7 +1,7 @@
 // ============================================================
 // PharmaGuard – Pharmacogenomic Engine (client-side, production)
 // CPIC Guidelines v2024.1 aligned
-// No secrets / no hardcoded API keys. Set VITE_OPENAI_API_KEY in .env
+// No secrets / no hardcoded API keys. Set VITE_GEMINI_API_KEY in .env
 // ============================================================
 
 // ─── Types ───────────────────────────────────────────────────
@@ -94,13 +94,11 @@ export function validateSchema(report: unknown): string | null {
     if (!(key in r)) return `Missing required field: ${key}`;
   }
 
-  // patient_id / drug / timestamp as non-empty strings
   if (typeof r.patient_id !== "string" || !r.patient_id) return "patient_id must be a non-empty string.";
   if (typeof r.drug !== "string" || !r.drug) return "drug must be a non-empty string.";
   if (typeof r.timestamp !== "string" || isNaN(Date.parse(r.timestamp as string)))
     return "timestamp must be a valid ISO 8601 string.";
 
-  // risk_assessment
   const ra = r.risk_assessment as Record<string, unknown>;
   if (!ra || typeof ra !== "object") return "risk_assessment must be an object.";
   if (!VALID_RISK_LABELS.includes(ra.risk_label as RiskLabel))
@@ -110,7 +108,6 @@ export function validateSchema(report: unknown): string | null {
   if (!VALID_SEVERITIES.includes(ra.severity as Severity))
     return `risk_assessment.severity must be one of: ${VALID_SEVERITIES.join(", ")}.`;
 
-  // pharmacogenomic_profile
   const pp = r.pharmacogenomic_profile as Record<string, unknown>;
   if (!pp || typeof pp !== "object") return "pharmacogenomic_profile must be an object.";
   for (const k of ["primary_gene", "diplotype", "phenotype"]) {
@@ -118,18 +115,15 @@ export function validateSchema(report: unknown): string | null {
   }
   if (!Array.isArray(pp.detected_variants)) return "pharmacogenomic_profile.detected_variants must be an array.";
 
-  // clinical_recommendation
   const cr = r.clinical_recommendation as Record<string, unknown>;
   if (!cr || typeof cr.action !== "string") return "clinical_recommendation.action must be a string.";
 
-  // llm_generated_explanation
   const llm = r.llm_generated_explanation as Record<string, unknown>;
   if (!llm || typeof llm !== "object") return "llm_generated_explanation must be an object.";
   for (const k of ["summary", "mechanism", "clinical_impact"]) {
     if (typeof llm[k] !== "string") return `llm_generated_explanation.${k} must be a string.`;
   }
 
-  // quality_metrics
   const qm = r.quality_metrics as Record<string, unknown>;
   if (!qm || typeof qm !== "object") return "quality_metrics must be an object.";
   if (typeof qm.vcf_parsing_success !== "boolean") return "quality_metrics.vcf_parsing_success must be boolean.";
@@ -137,7 +131,7 @@ export function validateSchema(report: unknown): string | null {
   if (typeof qm.supported_gene_detected !== "boolean") return "quality_metrics.supported_gene_detected must be boolean.";
   if (typeof qm.cpic_guideline_version !== "string") return "quality_metrics.cpic_guideline_version must be a string.";
 
-  return null; // valid
+  return null;
 }
 
 // ─── Pharmacogenomic Rule Database (CPIC 2024.1) ─────────────
@@ -547,11 +541,23 @@ export const SUPPORTED_DRUGS: Set<string> = new Set(
 
 /**
  * parseVCF – Entry point for VCF file parsing.
- * Reads file content as string, delegates to extractVariants().
+ * Validates VCF header, then delegates to extractVariants().
  */
 export function parseVCF(fileContent: string): ParsedVCF {
   try {
-    const variants = extractVariants(fileContent);
+    // Validate VCF format: must have at least one header line
+    const lines = fileContent.split("\n");
+    const hasHeader = lines.some((l) => l.startsWith("##fileformat=VCF") || l.startsWith("#CHROM"));
+    if (!hasHeader) {
+      return {
+        variants: [],
+        variantsFound: 0,
+        success: false,
+        error: "Invalid VCF format: missing ##fileformat or #CHROM header line.",
+      };
+    }
+
+    const variants = extractVariants(lines);
     return { variants, variantsFound: variants.length, success: true };
   } catch (err) {
     return {
@@ -564,12 +570,12 @@ export function parseVCF(fileContent: string): ParsedVCF {
 }
 
 /**
- * extractVariants – Parses VCF lines, extracting GENE and STAR from INFO column.
+ * extractVariants – Parses VCF lines, extracting GENE, STAR, and RS tags from INFO column.
  * Ignores header lines (starting with #). Requires GENE= tag to register a variant.
+ * Prefers RS= tag for rsid; falls back to VCF ID column (col[2]).
  */
-function extractVariants(fileContent: string): DetectedVariant[] {
+function extractVariants(lines: string[]): DetectedVariant[] {
   const variants: DetectedVariant[] = [];
-  const lines = fileContent.split("\n");
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -579,12 +585,18 @@ function extractVariants(fileContent: string): DetectedVariant[] {
     if (cols.length < 8) continue;
 
     // Standard VCF columns: CHROM(0) POS(1) ID(2) REF(3) ALT(4) QUAL(5) FILTER(6) INFO(7)
-    const rsid = cols[2] && cols[2] !== "." ? cols[2] : "unknown";
+    const vcfId = cols[2] && cols[2] !== "." ? cols[2] : "";
     const info = cols[7] || "";
 
     const infoTags = parseInfoTags(info);
     const gene = (infoTags["GENE"] || infoTags["gene"] || "").toUpperCase();
     const star = infoTags["STAR"] || infoTags["star"] || infoTags["ALLELE"] || "*1";
+
+    // Prefer RS= from INFO over VCF ID column for clinical rsID accuracy
+    const rsFromInfo = infoTags["RS"] || infoTags["rs"] || "";
+    const rsid = rsFromInfo
+      ? (rsFromInfo.startsWith("rs") ? rsFromInfo : `rs${rsFromInfo}`)
+      : (vcfId || "unknown");
 
     if (gene) {
       variants.push({ rsid, gene, star_allele: star });
@@ -612,13 +624,20 @@ function parseInfoTags(info: string): Record<string, string> {
 
 /**
  * determineDiplotype – Constructs diplotype string from detected variants for a gene.
- * If only one allele found, assumes homozygous pairing.
+ * Handles heterozygous (2+ alleles), homozygous (1 allele duplicated), and wildtype (*1/*1).
  */
 function determineDiplotype(variants: DetectedVariant[], gene: string): string {
   const geneVars = variants.filter((v) => v.gene === gene);
   if (geneVars.length === 0) return "*1/*1"; // wildtype assumption
+
   const alleles = geneVars.map((v) => v.star_allele || "*1");
-  return alleles.length === 1 ? `${alleles[0]}/${alleles[0]}` : `${alleles[0]}/${alleles[1]}`;
+
+  if (alleles.length === 1) {
+    // Single detected allele: heterozygous with wildtype assumption
+    return `*1/${alleles[0]}`;
+  }
+  // Use first two alleles for diplotype
+  return `${alleles[0]}/${alleles[1]}`;
 }
 
 // ─── 3. Risk Classifier ───────────────────────────────────────
@@ -657,7 +676,6 @@ export function classifyRisk(drug: string, variants: DetectedVariant[]): RiskRes
     // Partial match: gene covers this drug in some diplotype, but not the exact one
     const coversDrug = Object.values(diplotypeMap).some((d) => d.drugs[drugUpper]);
     if (coversDrug) {
-      // Use first diplotype as fallback estimate
       const fallbackKey = Object.keys(diplotypeMap)[0];
       const fallbackRule = diplotypeMap[fallbackKey];
       const drugRule = fallbackRule.drugs[drugUpper];
@@ -696,7 +714,8 @@ export function classifyRisk(drug: string, variants: DetectedVariant[]): RiskRes
 
 /**
  * generateJSON – Produces a schema-compliant PharmaGuardReport.
- * All fields are explicitly set; no extra keys are added.
+ * All fields explicitly set; no extra keys added.
+ * Internal schema validation guard throws on violation.
  */
 export function generateJSON(
   patientId: string,
@@ -734,7 +753,6 @@ export function generateJSON(
     },
   };
 
-  // Internal schema validation guard
   const validationError = validateSchema(report);
   if (validationError) {
     throw new Error(`Schema validation failed: ${validationError}`);
@@ -747,18 +765,11 @@ export function generateJSON(
 
 /**
  * API key sourced from Vite env variable: VITE_GEMINI_API_KEY
- * .env.example:
- *   VITE_GEMINI_API_KEY=AIzaSy...
- *
- * Runtime override also supported via setGeminiKey() for user-supplied keys.
+ * .env.example: VITE_GEMINI_API_KEY=AIzaSy...
+ * Runtime override supported via setGeminiKey() for user-supplied keys.
  */
 let _runtimeApiKey = "";
 
-export function setOpenAIKey(key: string): void {
-  _runtimeApiKey = key.trim();
-}
-
-/** Alias used by the updated UI panel */
 export function setGeminiKey(key: string): void {
   _runtimeApiKey = key.trim();
 }
@@ -768,9 +779,9 @@ function getApiKey(): string {
 }
 
 /**
- * callLLM – Requests a structured pharmacogenomic explanation from Google Gemini.
- * Uses the Gemini 2.0 Flash model via the generateContent REST endpoint.
+ * callLLM – Requests a structured pharmacogenomic explanation from Google Gemini 2.0 Flash.
  * Falls back to generateFallbackExplanation() on failure or missing key.
+ * Prevents duplicate API calls via per-drug deduplication in runAnalysis().
  */
 export async function callLLM(riskResult: RiskResult): Promise<LLMExplanation> {
   const apiKey = getApiKey();
@@ -781,7 +792,6 @@ export async function callLLM(riskResult: RiskResult): Promise<LLMExplanation> {
       ? riskResult.detected_variants.map((v) => `${v.rsid} (${v.star_allele})`).join(", ")
       : "none detected";
 
-  // Improved CPIC-aligned prompt per hackathon spec
   const prompt = `You are a board-certified clinical pharmacogenomics expert following CPIC guidelines.
 
 Patient gene: ${riskResult.primary_gene}
@@ -813,10 +823,8 @@ Be medically concise and accurate. Do not hallucinate variant identifiers or all
     if (!response.ok) return generateFallbackExplanation(riskResult);
 
     const data = await response.json();
-    const text: string =
-      data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text: string = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // Map four sections to three output fields
     const summaryMatch = text.match(/1\.\s*Summary[:\s]+(.+?)(?=2\.|$)/is);
     const mechMatch = text.match(/2\.\s*Biological mechanism[:\s]+(.+?)(?=3\.|$)/is);
     const implMatch = text.match(/3\.\s*Clinical implication[:\s]+(.+?)(?=4\.|$)/is);
@@ -835,13 +843,12 @@ Be medically concise and accurate. Do not hallucinate variant identifiers or all
 }
 
 /**
- * generateFallbackExplanation – Deterministic rule-based explanation.
- * Used when no API key is set or the LLM call fails.
- * Per spec: "Based on detected variant and CPIC guidelines, this risk assessment
- * is derived from pharmacogenomic evidence."
+ * generateFallbackExplanation – Deterministic CPIC-aligned explanation.
+ * Used when no API key is provided or LLM call fails.
  */
 function generateFallbackExplanation(r: RiskResult): LLMExplanation {
-  const FALLBACK_BASE = "Based on detected variant and CPIC guidelines, this risk assessment is derived from pharmacogenomic evidence.";
+  const FALLBACK_BASE =
+    "Based on detected variant and CPIC guidelines, this risk assessment is derived from pharmacogenomic evidence.";
 
   const summaryMap: Record<RiskLabel, string> = {
     Safe: `${r.primary_gene} diplotype ${r.diplotype} confers ${r.phenotype} status — standard ${r.drug} dosing is appropriate without pharmacogenomic contraindication. ${FALLBACK_BASE}`,
@@ -855,7 +862,7 @@ function generateFallbackExplanation(r: RiskResult): LLMExplanation {
     CYP2D6: `CYP2D6 encodes a major cytochrome P450 enzyme responsible for oxidative metabolism of ${r.drug} and ~25% of all clinically used drugs. The ${r.diplotype} diplotype produces ${r.phenotype.toLowerCase()}, directly altering drug bioactivation rates and active metabolite concentrations.`,
     CYP2C19: `CYP2C19 mediates hepatic bioactivation of prodrugs including ${r.drug}. The ${r.diplotype} diplotype alters enzyme kinetics (Vmax/Km), changing the rate of conversion to pharmacologically active metabolites and downstream receptor binding.`,
     CYP2C9: `CYP2C9 is the primary enzyme catalysing S-warfarin 7-hydroxylation and clearance. The ${r.diplotype} diplotype impairs enzyme function, extending ${r.drug} half-life and increasing systemic exposure, raising bleeding risk.`,
-    SLCO1B1: `SLCO1B1 encodes the hepatic uptake transporter OATP1B1 (organic anion transporting polypeptide). The ${r.diplotype} variant reduces transporter expression/function, causing elevated plasma ${r.drug} concentrations and increased skeletal muscle exposure, raising myopathy risk.`,
+    SLCO1B1: `SLCO1B1 encodes the hepatic uptake transporter OATP1B1. The ${r.diplotype} variant reduces transporter expression/function, causing elevated plasma ${r.drug} concentrations and increased skeletal muscle exposure, raising myopathy risk.`,
     TPMT: `TPMT catalyses S-methylation of thiopurine drugs including ${r.drug}. The ${r.diplotype} diplotype reduces TPMT activity, causing accumulation of cytotoxic 6-thioguanine nucleotides (6-TGN) in haematopoietic cells, leading to life-threatening myelosuppression.`,
     DPYD: `DPYD encodes dihydropyrimidine dehydrogenase, the rate-limiting enzyme responsible for >80% of ${r.drug} catabolism. The ${r.diplotype} diplotype severely impairs DPD function, causing dose-dependent fluoropyrimidine accumulation and systemic toxicity.`,
   };
@@ -896,13 +903,12 @@ export interface AnalysisResult {
 /**
  * runAnalysis – Orchestrates the full pipeline:
  * parseVCF → classifyRisk → callLLM → generateJSON (per drug)
- * Validates each report schema before including in output.
+ * Deduplicates drug list. Validates each report schema before including in output.
  */
 export async function runAnalysis(
   vcfContent: string,
   drugs: string[]
 ): Promise<AnalysisResult> {
-  // Normalise drug names to title-case for display, uppercase for lookup
   const normalisedDrugs = drugs.map((d) => d.trim()).filter(Boolean);
 
   const parsed = parseVCF(vcfContent);
@@ -912,7 +918,7 @@ export async function runAnalysis(
   const riskResults: RiskResult[] = [];
   const schemaErrors: string[] = [];
 
-  // Process each drug; prevent duplicate calls with deduplication
+  // Deduplicate drug list (case-insensitive) to prevent duplicate API calls
   const seenDrugs = new Set<string>();
   for (const drug of normalisedDrugs) {
     const key = drug.toUpperCase();

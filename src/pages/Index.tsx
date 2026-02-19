@@ -12,10 +12,9 @@ import { AnalysisResult } from "@/lib/pharmacogenomics";
 const Index = () => {
   const [results, setResults] = useState<AnalysisResult | null>(null);
 
-  // Initialize scroll reveal
   useScrollReveal();
 
-  // Re-run observer whenever results change (new elements appear)
+  // Re-run observer whenever results change (new elements appear in DOM)
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -36,14 +35,23 @@ const Index = () => {
     return () => observer.disconnect();
   }, [results]);
 
+  const handleReset = () => {
+    setResults(null);
+    document.getElementById("upload")?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <main>
         <HeroSection />
         <AboutSection />
-        <UploadSection onResults={setResults} />
-        {results && <ResultsSection results={results} />}
+        <UploadSection
+          onResults={setResults}
+          onReset={handleReset}
+          hasResults={results !== null}
+        />
+        {results && <ResultsSection results={results} onNewAnalysis={handleReset} />}
         <ExplainabilitySection />
       </main>
       <FooterSection />
